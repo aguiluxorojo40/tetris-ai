@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tetris 2D/3D Modular</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="game-container">
+    <h1>Tetris</h1>
+    <div class="game-wrapper">
+      <!-- Tablero 2D -->
+      <div class="tetris-board" id="board" aria-label="Tablero de Tetris"></div>
+      <!-- Canvas para renderizado 3D -->
+      <canvas id="tetrisCanvas" aria-label="Canvas de Tetris 3D"></canvas>
+
+      <!-- Panel de información -->
+      <div class="info-panel" aria-label="Panel de Información">
+        <h2>Score: <span id="score">0</span></h2>
+        <h2>Level: <span id="level">1</span></h2>
+        <h2>Next:</h2>
+        <div class="next-piece" id="nextPiece" aria-label="Próxima Pieza"></div>
+
+        <!-- Botón para cambiar entre modos -->
+        <button id="switchRenderMode" aria-pressed="false">Cambiar a 3D</button>
+
+        <!-- Botón para activar/desactivar la IA -->
+        <button id="toggleAIButton" aria-pressed="false">Activar IA</button>
+
+        <!-- Menú de inicio -->
+        <div class="start-menu" aria-label="Menú de Inicio">
+          <p class="game-desc">
+            Coloca las piezas de Tetris para completar líneas y ganar puntos.
+            Ajusta la dificultad y comienza tu partida.
+          </p>
+          <button id="startButton" class="start-button">Iniciar Juego</button>
+          <div class="difficulty-select">
+            <label for="difficulty"><span class="icon">⚙️</span> Dificultad:</label>
+            <select id="difficulty">
+              <option value="500">Normal</option>
+              <option value="300">Hard</option>
+              <option value="700">Easy</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controles manuales -->
+    <div class="controls" aria-label="Controles Manuales">
+      <button id="rotate" aria-label="Rotar Pieza">⟳</button>
+      <button id="left" aria-label="Mover Izquierda">←</button>
+      <button id="down" aria-label="Mover Abajo">↓</button>
+      <button id="right" aria-label="Mover Derecha">→</button>
+      <button id="hardDrop" aria-label="Hard Drop">Drop</button>
+    </div>
+  </div>
+
+  <!-- Botón para mostrar el menú de opciones -->
+  <button id="optionsButton" aria-controls="optionsMenu" aria-expanded="false">Opciones</button>
+
+  <!-- Menú de Opciones -->
+  <div class="options-menu" id="optionsMenu" aria-hidden="true">
+    <h2>Opciones</h2>
+    <label for="bgImageInput">Selecciona una imagen de fondo:</label>
+    <input type="file" id="bgImageInput" accept="image/*">
+  </div>
+
+  <!-- Archivo principal -->
+  <script type="module" src="main.js"></script>
+</body>
+</html>
