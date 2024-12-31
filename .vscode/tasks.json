@@ -1,0 +1,31 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "npm install",
+			"command": "npm",
+			"args": [
+				"install",
+				"--save-dev",
+				"babel-jest",
+				"@babel/preset-env"
+			],
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"type": "shell",
+			"label": "npm uninstall enzyme-adapter-react-18",
+			"command": "npm",
+			"args": [
+				"uninstall",
+				"enzyme-adapter-react-18"
+			],
+			"presentation": {
+				"reveal": "silent"
+			}
+		}
+	]
+}

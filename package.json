@@ -1,6 +1,33 @@
 {
+  "type": "module",
   "dependencies": {
+    "@tensorflow/tfjs": "^3.9.0",
     "@tensorflow/tfjs-tflite": "^0.0.1-alpha.10",
+    "axios": "^0.21.1",
+    "prop-types": "^15.7.2",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-redux": "^7.2.4",
+    "redux": "^4.1.0",
+    "styled-components": "^5.3.0",
     "three": "^0.171.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-react": "^7.26.3",
+    "babel-jest": "^29.7.0",
+    "enzyme": "^3.11.0",
+    "jest": "^29.0.0",
+    "@wojtekmaj/enzyme-adapter-react-17": "^0.6.6"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.jsx?$": "babel-jest"
+    },
+    "setupFilesAfterEnv": ["<rootDir>/setupTests.js"]
   }
 }
