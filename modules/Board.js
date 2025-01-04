@@ -13,23 +13,28 @@ export default class Board {
     }
   }
 
-  canMove(x, y, shape) {
-    for (let sy = 0; sy < shape.length; sy++) {
-      for (let sx = 0; sx < shape[sy].length; sx++) {
-        if (shape[sy][sx] !== 0) {
-          const newX = x + sx;
-          const newY = y + sy;
+  canMove(piece, dx, dy) {
+    const { x, y, shape } = piece;
+
+    for (let row = 0; row < shape.length; row++) {
+      for (let col = 0; col < shape[row].length; col++) {
+        if (shape[row][col]) {
+          const newX = x + col + dx;
+          const newY = y + row + dy;
+
+          // Verificar si la nueva posición está fuera de los límites del tablero
           if (
-            newX < 0 || // Fuera del tablero a la izquierda
-            newX >= this.width || // Fuera del tablero a la derecha
-            newY >= this.height || // Fuera del tablero por abajo
-            (newY >= 0 && this.grid[newY][newX] !== 0) // Colisión con otra pieza
+            newX < 0 ||
+            newX >= this.width ||
+            newY >= this.height ||
+            (newY >= 0 && this.grid[newY][newX])
           ) {
             return false;
           }
         }
       }
     }
+
     return true;
   }
 
@@ -40,7 +45,7 @@ export default class Board {
         if (shape[sy][sx] !== 0) {
           const boardY = y + sy;
           const boardX = x + sx;
-          if (boardY >= 0) this.grid[boardY][boardX] = color;
+          if (boardY >= 0) this.grid[boardY][boardX] = 1; // Usar valores numéricos
         }
       }
     }
@@ -69,20 +74,20 @@ export default class Board {
         const cellColor = this.grid[y][x];
         const cell = cells[index];
         cell.classList.remove('line-clear', 'ghost'); // Limpiar clases
-        cell.style.backgroundColor = cellColor === 0 ? '#444' : cellColor; // Actualizar color
+        cell.style.backgroundColor = cellColor === 0 ? '#444' : 'red'; // Usar un color fijo como 'red'
       }
     }
   }
 
   drawPiece(piece) {
     const cells = this.element.children;
-    const { x, y, shape, color } = piece;
+    const { x, y, shape, color = 'red' } = piece; // Establece un color predeterminado
     for (let sy = 0; sy < shape.length; sy++) {
       for (let sx = 0; sx < shape[sy].length; sx++) {
         if (shape[sy][sx] !== 0) {
           const index = (y + sy) * this.width + (x + sx);
           if (index >= 0 && index < this.width * this.height) {
-            cells[index].style.backgroundColor = color; // Dibujar pieza
+            cells[index].style.backgroundColor = color; // Establece el color
           }
         }
       }
@@ -92,12 +97,14 @@ export default class Board {
   drawGhost(piece, ghostY) {
     const cells = this.element.children;
     const { x, shape } = piece;
+    const ghostColor = 'rgba(255, 0, 0, 0.5)'; // Color semitransparente para la sombra
+
     for (let sy = 0; sy < shape.length; sy++) {
       for (let sx = 0; sx < shape[sy].length; sx++) {
         if (shape[sy][sx] !== 0) {
           const index = (ghostY + sy) * this.width + (x + sx);
           if (index >= 0 && index < this.width * this.height) {
-            cells[index].classList.add('ghost'); // Agregar clase de sombra
+            cells[index].style.backgroundColor = ghostColor; // Aplicar el color de sombra
           }
         }
       }

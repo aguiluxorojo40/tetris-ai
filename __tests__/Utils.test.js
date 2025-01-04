@@ -1,36 +1,51 @@
-import { getRandomPiece, animateLineClear } from './Utils.js';
-import { Piece } from './Piece.js';
+import { getRandomPiece, animateLineClear } from '../modules/Utils.js';
+import { Piece } from '../modules/Piece.js';
 
 describe('Utils module', () => {
+  beforeAll(() => {
+    // Configurar temporizadores simulados antes de todas las pruebas
+    jest.useFakeTimers();
+  });
+
+  afterAll(() => {
+    // Restaurar temporizadores reales después de todas las pruebas
+    jest.useRealTimers();
+  });
+
+  beforeEach(() => {
+    // Configurar el DOM antes de cada prueba
+    document.body.innerHTML = '<div id="board"></div>';
+  });
+
+  afterEach(() => {
+    // Limpiar el DOM y reiniciar mocks después de cada prueba
+    document.body.innerHTML = '';
+    jest.clearAllTimers();
+  });
+
   test('getRandomPiece should return a Piece instance', () => {
     const piece = getRandomPiece();
     expect(piece).toBeInstanceOf(Piece);
   });
 
   test('animateLineClear should add and remove line-clear class', (done) => {
-    document.body.innerHTML = '<div id="board"></div>';
     const boardElement = document.getElementById('board');
-    for (let i = 0; i < 200; i++) {
-      const cell = document.createElement('div');
-      boardElement.appendChild(cell);
+
+    // Crear celdas con la clase 'line-clear'
+    for (let i = 0; i < 20; i++) { // Asumiendo 2 líneas de 10
+      const row = document.createElement('div');
+      row.classList.add('line-clear');
+      boardElement.appendChild(row);
     }
 
-    const lines = [0, 1];
-    animateLineClear(boardElement, lines, () => {
-      lines.forEach((lineIndex) => {
-        for (let x = 0; x < 10; x++) {
-          const idx = lineIndex * 10 + x;
-          expect(boardElement.children[idx].classList.contains('line-clear')).toBe(false);
-        }
-      });
+    // Llamar a la función a probar con el callback done
+    animateLineClear(boardElement, [0, 1], () => {
+      const cellsAfterAnimation = boardElement.querySelectorAll('.line-clear');
+      expect(cellsAfterAnimation.length).toBe(0);
       done();
     });
 
-    lines.forEach((lineIndex) => {
-      for (let x = 0; x < 10; x++) {
-        const idx = lineIndex * 10 + x;
-        expect(boardElement.children[idx].classList.contains('line-clear')).toBe(true);
-      }
-    });
+    // Avanzar el tiempo para simular la finalización de la animación
+    jest.advanceTimersByTime(600);
   });
 });

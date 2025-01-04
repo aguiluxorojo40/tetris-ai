@@ -26,6 +26,43 @@
 			"presentation": {
 				"reveal": "silent"
 			}
+		},
+		{
+			"type": "shell",
+			"label": "npm fund",
+			"command": "npm",
+			"args": [
+				"fund"
+			],
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"type": "shell",
+			"label": "npm install latest",
+			"command": "npm",
+			"args": [
+				"install",
+				"-g",
+				"npm@latest"
+			],
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"type": "shell",
+			"label": "create venv",
+			"command": "python",
+			"args": [
+				"-m",
+				"venv",
+				".venv"
+			],
+			"presentation": {
+				"reveal": "silent"
+			}
 		}
 	]
 }

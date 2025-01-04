@@ -1,4 +1,5 @@
-// filepath: /c:/Users/aguil/Documents/GitHub/tetris-ai/setupTests.js
+// setupTests.js
+import 'text-encoding-polyfill';
 import { configure } from 'enzyme';
 import Adapter from '@wojtekmaj/enzyme-adapter-react-17';
 

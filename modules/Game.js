@@ -1,3 +1,4 @@
+// modules/Game.js
 import Board from './Board.js';
 import { getRandomPiece, animateLineClear } from './Utils.js';
 import { addControlListeners, removeControlListeners } from './Controls.js';
@@ -254,5 +255,37 @@ export default class Game {
     this.board.clear();
     this.spawnPiece();
     this.start();
+  }
+  drawPiece(piece) {
+    const { shape, x, y } = piece;
+    shape.forEach((row, rowIndex) => {
+      row.forEach((value, colIndex) => {
+        if (value) {
+          const cell = this.boardElement.children[(y + rowIndex) * this.boardWidth + (x + colIndex)];
+          if (cell) cell.style.backgroundColor = 'red'; // Cambia según el color
+        }
+      });
+    });
+  }
+
+  drawNextPiece() {
+    // Implement the drawNextPiece method
+    // Clear the next piece board
+    while (this.nextPieceBoard.firstChild) {
+      this.nextPieceBoard.removeChild(this.nextPieceBoard.firstChild);
+    }
+
+    // Draw the next piece
+    this.nextPiece.shape.forEach((row, rowIndex) => {
+      row.forEach((value, colIndex) => {
+        if (value) {
+          const cell = document.createElement('div');
+          cell.style.backgroundColor = 'red'; // Change according to the color
+          cell.style.gridRowStart = rowIndex + 1;
+          cell.style.gridColumnStart = colIndex + 1;
+          this.nextPieceBoard.appendChild(cell);
+        }
+      });
+    });
   }
 }

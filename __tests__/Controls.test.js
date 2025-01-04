@@ -1,16 +1,9 @@
-import { addControlListeners, removeControlListeners } from './Controls';
+import { addControlListeners, removeControlListeners } from '../modules/Controls.js';
 
-describe('Controls Module', () => {
-  let gameMock;
+describe('Controls module', () => {
+  let mockGame;
 
   beforeEach(() => {
-    gameMock = {
-      movePiece: jest.fn(),
-      softDrop: jest.fn(),
-      hardDrop: jest.fn(),
-      rotatePiece: jest.fn()
-    };
-
     document.body.innerHTML = `
       <button id="left"></button>
       <button id="right"></button>
@@ -18,44 +11,54 @@ describe('Controls Module', () => {
       <button id="hardDrop"></button>
       <button id="rotate"></button>
     `;
+    mockGame = {
+      movePiece: jest.fn(),
+      softDrop: jest.fn(),
+      hardDrop: jest.fn(),
+      rotatePiece: jest.fn(),
+    };
   });
 
-  test('addControlListeners should add event listeners to buttons', () => {
-    addControlListeners(gameMock);
+  afterEach(() => {
+    removeControlListeners();
+  });
+
+  test('addControlListeners should add event listeners', () => {
+    addControlListeners(mockGame);
 
     document.getElementById('left').click();
-    expect(gameMock.movePiece).toHaveBeenCalledWith(-1, 0);
+    expect(mockGame.movePiece).toHaveBeenCalledWith(-1, 0);
 
     document.getElementById('right').click();
-    expect(gameMock.movePiece).toHaveBeenCalledWith(1, 0);
+    expect(mockGame.movePiece).toHaveBeenCalledWith(1, 0);
 
     document.getElementById('down').click();
-    expect(gameMock.softDrop).toHaveBeenCalled();
+    expect(mockGame.softDrop).toHaveBeenCalled();
 
     document.getElementById('hardDrop').click();
-    expect(gameMock.hardDrop).toHaveBeenCalled();
+    expect(mockGame.hardDrop).toHaveBeenCalled();
 
     document.getElementById('rotate').click();
-    expect(gameMock.rotatePiece).toHaveBeenCalled();
+    expect(mockGame.rotatePiece).toHaveBeenCalled();
   });
 
   test('removeControlListeners should remove event listeners from buttons', () => {
-    addControlListeners(gameMock);
+    addControlListeners(mockGame);
     removeControlListeners();
 
     document.getElementById('left').click();
-    expect(gameMock.movePiece).not.toHaveBeenCalled();
+    expect(mockGame.movePiece).not.toHaveBeenCalled();
 
     document.getElementById('right').click();
-    expect(gameMock.movePiece).not.toHaveBeenCalled();
+    expect(mockGame.movePiece).not.toHaveBeenCalled();
 
     document.getElementById('down').click();
-    expect(gameMock.softDrop).not.toHaveBeenCalled();
+    expect(mockGame.softDrop).not.toHaveBeenCalled();
 
     document.getElementById('hardDrop').click();
-    expect(gameMock.hardDrop).not.toHaveBeenCalled();
+    expect(mockGame.hardDrop).not.toHaveBeenCalled();
 
     document.getElementById('rotate').click();
-    expect(gameMock.rotatePiece).not.toHaveBeenCalled();
+    expect(mockGame.rotatePiece).not.toHaveBeenCalled();
   });
 });

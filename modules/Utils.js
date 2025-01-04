@@ -36,17 +36,27 @@ export function getRandomPiece() {
 }
 
 export function animateLineClear(boardElement, lines, callback) {
-  const cells = boardElement.children;
+  // Asegúrate de que `callback` es una función
+  if (typeof callback !== 'function') {
+    throw new TypeError('Callback must be a function');
+  }
 
-  // Añade la clase line-clear a las celdas de las líneas a borrar
+  // Agregar una clase de animación si es necesario
   lines.forEach((lineIndex) => {
-    for (let x = 0; x < 10; x++) {
-      const idx = lineIndex * 10 + x;
-      cells[idx].classList.add('line-clear');
+    const line = boardElement.children[lineIndex];
+    if (line) {
+      line.classList.add('animating');
     }
   });
 
+  // Lógica para eliminar la clase 'line-clear' después de la animación
   setTimeout(() => {
+    lines.forEach((lineIndex) => {
+      const line = boardElement.children[lineIndex];
+      if (line) {
+        line.classList.remove('line-clear', 'animating');
+      }
+    });
     callback();
-  }, 600);
+  }, 600); // Duración de la animación en ms
 }

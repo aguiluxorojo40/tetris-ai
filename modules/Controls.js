@@ -1,4 +1,5 @@
-
+// __tests__/Controls.test.js
+import { Game } from '../modules/Game.js';
 
 export function addControlListeners(game) {
   document.getElementById('left').addEventListener('click', () => game.movePiece(-1, 0));
