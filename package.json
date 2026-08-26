@@ -35,9 +35,10 @@
       "<rootDir>/jest.setup.js"
     ],
     "testEnvironment": "jsdom",
-    "setupFilesAfterEnv": [
-      "<rootDir>/setupTests.js"
-    ],
+    "moduleNameMapper": {
+      "^@tensorflow/tfjs$": "<rootDir>/test-utils/tfjs-stub.js",
+      "^@tensorflow/tfjs-tflite$": "<rootDir>/test-utils/empty-stub.js"
+    },
     "transform": {
       "^.+\\.jsx?$": "babel-jest"
     }

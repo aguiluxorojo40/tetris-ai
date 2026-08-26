@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'claude/**'
+  pull_request:
+
+jobs:
+  test:
+    name: Jest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # canvas es una dependencia con binario nativo; instalamos sus librerías
+      # de sistema para que pueda compilarse si no hubiese binario precompilado.
+      - name: Librerías de sistema para canvas
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+
+      - name: Instalar dependencias
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Ejecutar tests
+        run: npm test -- --ci

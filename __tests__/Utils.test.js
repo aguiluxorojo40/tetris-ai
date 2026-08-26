@@ -28,6 +28,29 @@ describe('Utils module', () => {
     expect(piece).toBeInstanceOf(Piece);
   });
 
+  test('getRandomPiece should always return a valid, well-formed piece', () => {
+    const validTypes = ['I', 'O', 'T', 'S', 'Z', 'L', 'J'];
+    for (let i = 0; i < 50; i++) {
+      const piece = getRandomPiece();
+      expect(validTypes).toContain(piece.type);
+      expect(Array.isArray(piece.shape)).toBe(true);
+      expect(piece.shape.length).toBeGreaterThan(0);
+      expect(typeof piece.color).toBe('string');
+    }
+  });
+
+  test('getRandomPiece should return independent shape copies', () => {
+    const a = getRandomPiece();
+    a.shape[0][0] = 9; // mutar una pieza no debe afectar a las siguientes
+    const b = getRandomPiece();
+    expect(b.shape.flat()).not.toContain(9);
+  });
+
+  test('animateLineClear should throw if callback is not a function', () => {
+    const boardElement = document.getElementById('board');
+    expect(() => animateLineClear(boardElement, [0], null)).toThrow(TypeError);
+  });
+
   test('animateLineClear should add and remove line-clear class', (done) => {
     const boardElement = document.getElementById('board');
 

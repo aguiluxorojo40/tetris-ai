@@ -1,6 +1,6 @@
 // jest.setup.js
-global.URL.createObjectURL = jest.fn(() => 'mockObjectURL');
-const { createCanvas } = require('canvas');
-global.HTMLCanvasElement.prototype.getContext = function () {
-  return createCanvas().getContext('2d');
-};
+// Polyfill mínimo para jsdom. No usamos `jest` aquí porque los setupFiles se
+// ejecutan antes de instalar el framework de test.
+if (typeof global.URL.createObjectURL !== 'function') {
+  global.URL.createObjectURL = () => 'mockObjectURL';
+}

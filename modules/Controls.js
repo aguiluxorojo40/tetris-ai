@@ -1,5 +1,5 @@
-// __tests__/Controls.test.js
-import { Game } from '../modules/Game.js';
+// modules/Controls.js
+// Enlaza los botones de control manual con la instancia de juego recibida.
 
 export function addControlListeners(game) {
   document.getElementById('left').addEventListener('click', () => game.movePiece(-1, 0));

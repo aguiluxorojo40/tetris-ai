@@ -62,7 +62,7 @@ export default class Game {
   // Devuelve el estado del juego para la IA
   getGameState() {
     return {
-      board: this.board.grid.map(row => row.map(cell => (cell ? cell.type : 0))),
+      board: this.board.grid.map(row => row.map(cell => (cell ? 1 : 0))),
       currentPiece: {
         type: this.currentPiece.type,
         rotation: this.currentPiece.rotation,
@@ -183,7 +183,9 @@ export default class Game {
 
   canMove(dx, dy, shape) {
     const { x, y } = this.currentPiece;
-    return this.board.canMove(x + dx, y + dy, shape);
+    // Board.canMove espera (piece, dx, dy): construimos una pieza-candidata
+    // con la forma indicada (que puede ser una rotación aún no aplicada).
+    return this.board.canMove({ x, y, shape }, dx, dy);
   }
 
   lockPiece() {

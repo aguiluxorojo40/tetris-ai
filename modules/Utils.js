@@ -1,38 +1,33 @@
 import { Piece } from './Piece.js';
 
 const pieces = [
-  // I
-  { shape: [[1, 1, 1, 1]], color: 'cyan' },
-  
-  // O
-  { shape: [[1, 1],
-            [1, 1]], color: 'yellow' },
-  
-  // T
-  { shape: [[0, 1, 0],
-            [1, 1, 1]], color: 'purple' },
-  
-  // S
-  { shape: [[0, 1, 1],
-            [1, 1, 0]], color: 'green' },
-  
-  // Z
-  { shape: [[1, 1, 0],
-            [0, 1, 1]], color: 'red' },
-  
-  // L
-  { shape: [[1, 0, 0],
-            [1, 1, 1]], color: 'blue' },
-  
-  // J
-  { shape: [[0, 0, 1],
-            [1, 1, 1]], color: 'orange' },
+  { type: 'I', shape: [[1, 1, 1, 1]], color: 'cyan' },
+
+  { type: 'O', shape: [[1, 1],
+                       [1, 1]], color: 'yellow' },
+
+  { type: 'T', shape: [[0, 1, 0],
+                       [1, 1, 1]], color: 'purple' },
+
+  { type: 'S', shape: [[0, 1, 1],
+                       [1, 1, 0]], color: 'green' },
+
+  { type: 'Z', shape: [[1, 1, 0],
+                       [0, 1, 1]], color: 'red' },
+
+  { type: 'L', shape: [[1, 0, 0],
+                       [1, 1, 1]], color: 'blue' },
+
+  { type: 'J', shape: [[0, 0, 1],
+                       [1, 1, 1]], color: 'orange' },
 ];
 
 export function getRandomPiece() {
   const randomIndex = Math.floor(Math.random() * pieces.length);
-  const { shape, color } = pieces[randomIndex];
-  return new Piece(shape, color);
+  const { shape, color, type } = pieces[randomIndex];
+  // Clonamos la forma para que cada pieza tenga su propia matriz (rotaciones
+  // independientes) y no se mute la definición compartida.
+  return new Piece(shape.map(row => [...row]), color, type);
 }
 
 export function animateLineClear(boardElement, lines, callback) {

@@ -28,20 +28,56 @@ describe('Board', () => {
     expect(board.canMove(piece, 1, 0)).toBe(true);
   });
 
-  test('canMove should return false for an invalid move', () => {
+  test('canMove should return false when moving past the right wall', () => {
     const piece = { shape: [[1]], x: 9, y: 0 };
     expect(board.canMove(piece, 1, 0)).toBe(false);
+  });
+
+  test('canMove should return false when moving past the left wall', () => {
+    const piece = { shape: [[1]], x: 0, y: 0 };
+    expect(board.canMove(piece, -1, 0)).toBe(false);
+  });
+
+  test('canMove should return false when moving below the floor', () => {
+    const piece = { shape: [[1]], x: 0, y: 19 };
+    expect(board.canMove(piece, 0, 1)).toBe(false);
+  });
+
+  test('canMove should return false when colliding with a locked block', () => {
+    board.grid[5][4] = 1;
+    const piece = { shape: [[1]], x: 4, y: 4 };
+    expect(board.canMove(piece, 0, 1)).toBe(false);
+  });
+
+  test('canMove should allow movement above the top of the board (y negativa)', () => {
+    const piece = { shape: [[1, 1]], x: 4, y: -1 };
+    expect(board.canMove(piece, 0, 0)).toBe(true);
   });
 
   test('lockPiece should lock the piece on the board', () => {
     const piece = { shape: [[1]], x: 0, y: 0, color: 'red' };
     board.lockPiece(piece);
-    expect(board.grid[0][0]).toBe(1); // Usar valores numéricos
+    expect(board.grid[0][0]).toBe(1);
+  });
+
+  test('lockPiece should lock every filled cell of a multi-cell piece', () => {
+    const piece = { shape: [[1, 1], [0, 1]], x: 2, y: 3, color: 'red' };
+    board.lockPiece(piece);
+    expect(board.grid[3][2]).toBe(1);
+    expect(board.grid[3][3]).toBe(1);
+    expect(board.grid[4][3]).toBe(1);
+    expect(board.grid[4][2]).toBe(0); // celda vacía del shape
   });
 
   test('getFullLines should return the indices of full lines', () => {
     board.grid[0] = new Array(10).fill(1);
     expect(board.getFullLines()).toEqual([0]);
+  });
+
+  test('getFullLines should ignore partially filled rows', () => {
+    board.grid[0] = new Array(10).fill(1);
+    board.grid[0][5] = 0; // hueco
+    expect(board.getFullLines()).toEqual([]);
   });
 
   test('clearLines should clear the specified lines', () => {
@@ -50,23 +86,36 @@ describe('Board', () => {
     expect(board.grid[0]).toEqual(new Array(10).fill(0));
   });
 
+  test('clearLines should shift rows above the cleared line downward', () => {
+    // Marcador en la fila 18, línea completa en la 19.
+    board.grid[18][0] = 1;
+    board.grid[19] = new Array(10).fill(1);
+    board.clearLines([19]);
+    // El marcador desciende de la fila 18 a la 19.
+    expect(board.grid[19][0]).toBe(1);
+    expect(board.grid[18][0]).toBe(0);
+  });
+
   test('draw should update the DOM with the correct colors', () => {
     board.grid[0][0] = 1;
     board.draw();
     expect(element.children[0].style.backgroundColor).toBe('red');
+    // Una celda vacía usa el color de fondo, no el de una pieza.
+    expect(element.children[1].style.backgroundColor).not.toBe('red');
+    expect(element.children[1].style.backgroundColor).toBeTruthy();
   });
 
   test('drawPiece should draw the piece on the board', () => {
-    const piece = { shape: [[1]], x: 0, y: 0, color: 'red' }; // Incluir el color
+    const piece = { shape: [[1]], x: 0, y: 0, color: 'red' };
     board.drawPiece(piece);
     expect(element.children[0].style.backgroundColor).toBe('red');
   });
 
   test('drawGhost should draw the ghost piece on the board', () => {
     const piece = { shape: [[1]], x: 0, y: 0 };
-    const ghostY = 5; // Posición de la sombra
-    board.drawGhost(piece, ghostY); // Proporcionar ghostY
-    const index = ghostY * board.width + piece.x; // Índice calculado para verificar
+    const ghostY = 5;
+    board.drawGhost(piece, ghostY);
+    const index = ghostY * board.width + piece.x;
     expect(element.children[index].style.backgroundColor).toBe('rgba(255, 0, 0, 0.5)');
   });
 });

@@ -62,33 +62,27 @@ export default class AI {
    * @param {Array} board - Representación del tablero del juego.
    * @returns {string} - Descripción de la acción realizada.
    */
-  makeMove(board) {
-    // Aquí deberías transformar la acción numérica en un movimiento real en el juego.
-    // Por ejemplo:
-    const action = this.predictAction(board);
-    // Mapear el número a una acción específica.
-    // 0: Mover a la izquierda
-    // 1: Mover a la derecha
-    // 2: Bajar suavemente
-    // 3: Bajar rápidamente (hard drop)
-    // 4: Rotar pieza
+  async makeMove(gameState) {
+    // predictAction es asíncrona: hay que esperar el resultado antes de mapearlo.
+    const action = await this.predictAction(gameState);
 
+    // El mapeo usa el mismo espacio de acciones que Game.executeAction:
+    // 0: Bajar (soft drop)
+    // 1: Mover a la izquierda
+    // 2: Mover a la derecha
+    // 3: Rotar pieza
+    // 4: Bajar rápidamente (hard drop)
     switch (action) {
       case 0:
-        // Logic to move left
-        return 'move left';
+        return 'move down';
       case 1:
-        // Logic to move right
-        return 'move right';
+        return 'move left';
       case 2:
-        // Logic for soft drop
-        return 'soft drop';
+        return 'move right';
       case 3:
-        // Logic for hard drop
-        return 'hard drop';
-      case 4:
-        // Logic to rotate piece
         return 'rotate piece';
+      case 4:
+        return 'hard drop';
       default:
         return 'no action';
     }
