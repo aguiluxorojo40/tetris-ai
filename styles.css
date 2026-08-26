@@ -195,3 +195,29 @@ canvas#tetrisCanvas.active {
     height: 400px;
   }
 }
+
+/* ----- Estado y leyenda del mando ----- */
+.gamepad-status {
+  margin: 8px 0;
+  font-size: 0.9rem;
+  opacity: 0.6;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.gamepad-status.connected {
+  opacity: 1;
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.gamepad-legend {
+  margin: 8px 0;
+  padding-left: 20px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.gamepad-hint {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}

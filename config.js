@@ -10,7 +10,8 @@ export const CONFIG = {
     TOGGLE_AI_BUTTON: 'toggleAIButton',
     OPTIONS_BUTTON: 'optionsButton',
     BG_IMAGE_INPUT: 'bgImageInput',
-    BOARD: 'board'
+    BOARD: 'board',
+    GAMEPAD_STATUS: 'gamepadStatus'
   },
 
   SELECTORS: {

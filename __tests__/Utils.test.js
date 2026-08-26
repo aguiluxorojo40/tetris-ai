@@ -51,24 +51,33 @@ describe('Utils module', () => {
     expect(() => animateLineClear(boardElement, [0], null)).toThrow(TypeError);
   });
 
-  test('animateLineClear should add and remove line-clear class', (done) => {
+  test('animateLineClear limpia sólo las líneas indicadas y avisa al terminar', () => {
     const boardElement = document.getElementById('board');
 
     // Crear celdas con la clase 'line-clear'
-    for (let i = 0; i < 20; i++) { // Asumiendo 2 líneas de 10
+    for (let i = 0; i < 20; i++) {
       const row = document.createElement('div');
       row.classList.add('line-clear');
       boardElement.appendChild(row);
     }
 
-    // Llamar a la función a probar con el callback done
-    animateLineClear(boardElement, [0, 1], () => {
-      const cellsAfterAnimation = boardElement.querySelectorAll('.line-clear');
-      expect(cellsAfterAnimation.length).toBe(0);
-      done();
-    });
+    const callback = jest.fn();
+    animateLineClear(boardElement, [0, 1], callback);
 
-    // Avanzar el tiempo para simular la finalización de la animación
+    // Durante la animación, las líneas afectadas quedan marcadas y el
+    // callback todavía no se ha invocado.
+    expect(boardElement.children[0].classList.contains('animating')).toBe(true);
+    expect(boardElement.children[1].classList.contains('animating')).toBe(true);
+    expect(callback).not.toHaveBeenCalled();
+
     jest.advanceTimersByTime(600);
+
+    // Al terminar se limpian las líneas indicadas...
+    expect(boardElement.children[0].classList.contains('line-clear')).toBe(false);
+    expect(boardElement.children[1].classList.contains('line-clear')).toBe(false);
+    expect(boardElement.children[0].classList.contains('animating')).toBe(false);
+    // ...y sólo esas: el resto del tablero queda intacto.
+    expect(boardElement.children[2].classList.contains('line-clear')).toBe(true);
+    expect(callback).toHaveBeenCalledTimes(1);
   });
 });

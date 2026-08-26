@@ -28,6 +28,9 @@
         <!-- Botón para activar/desactivar la IA -->
         <button id="toggleAIButton" aria-pressed="false">Activar IA</button>
 
+        <!-- Estado del mando -->
+        <p id="gamepadStatus" class="gamepad-status" aria-live="polite">🎮 Sin mando</p>
+
         <!-- Menú de inicio -->
         <div class="start-menu" aria-label="Menú de Inicio">
           <p class="game-desc">
@@ -65,6 +68,18 @@
     <h2>Opciones</h2>
     <label for="bgImageInput">Selecciona una imagen de fondo:</label>
     <input type="file" id="bgImageInput" accept="image/*">
+
+    <h3>Controles del mando</h3>
+    <ul class="gamepad-legend">
+      <li><strong>Cruceta / stick izq.:</strong> mover y bajar</li>
+      <li><strong>Botones frontales / arriba:</strong> rotar</li>
+      <li><strong>Gatillos y bumpers:</strong> hard drop</li>
+      <li><strong>Start / Select:</strong> iniciar partida</li>
+    </ul>
+    <p class="gamepad-hint">
+      Compatible con cualquier mando. Si no aparece como conectado, pulsa
+      cualquier botón: los navegadores no lo detectan hasta la primera pulsación.
+    </p>
   </div>
 
   <!-- Archivo principal -->
