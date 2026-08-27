@@ -90,6 +90,18 @@ npm run serve:node
 
 Y abrir <http://localhost:8000>. Pulsa **Iniciar Juego**.
 
+El juego en sí no necesita Node ni instalar nada: basta con cualquier servidor
+estático. En **Termux**, por ejemplo:
+
+```bash
+pkg install python
+cd tetris-ai
+python -m http.server 8000
+```
+
+y abrir <http://localhost:8000> en el navegador del móvil. Node sólo hace falta
+para ejecutar los tests.
+
 Controles de teclado: `←` `→` mover, `↓` bajar, `↑` rotar, `Espacio` hard drop.
 
 ### 3. Probar el mando
