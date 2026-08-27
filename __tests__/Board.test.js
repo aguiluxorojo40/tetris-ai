@@ -119,3 +119,19 @@ describe('Board', () => {
     expect(element.children[index].style.backgroundColor).toBe('rgba(255, 0, 0, 0.5)');
   });
 });
+
+describe('Board.clear', () => {
+  // Regresión: Game.resetGame() llamaba a board.clear() y el método no existía,
+  // así que la partida reventaba al reiniciarse con la IA activa.
+  test('vacía la grilla por completo', () => {
+    const element = document.createElement('div');
+    const board = new Board(10, 20, element);
+    board.grid[19][0] = 1;
+    board.grid[0][9] = 1;
+
+    board.clear();
+
+    expect(board.grid.length).toBe(20);
+    expect(board.grid.every(row => row.length === 10 && row.every(c => c === 0))).toBe(true);
+  });
+});

@@ -2,7 +2,6 @@
 
 // config.js
 export const CONFIG = {
-  MODEL_PATH: 'path_to_model/model.tflite', // Ajusta esta ruta según la ubicación de tu modelo
 
   BUTTON_IDS: {
     START_BUTTON: 'startButton',

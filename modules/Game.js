@@ -25,6 +25,10 @@ export default class Game {
     // Flags IA / Estado del juego
     this.isAIPlaying = false;
     this.isRunning = false;
+    // El borrado de líneas se anima durante 600 ms; mientras tanto la grilla
+    // todavía contiene las líneas completas y la IA no debe seguir jugando
+    // sobre un tablero desactualizado.
+    this.isClearing = false;
 
     this.keydownHandler = this.handleKeyDown.bind(this);
     addControlListeners(this);
@@ -65,7 +69,8 @@ export default class Game {
       board: this.board.grid.map(row => row.map(cell => (cell ? 1 : 0))),
       currentPiece: {
         type: this.currentPiece.type,
-        rotation: this.currentPiece.rotation,
+        // La IA necesita la matriz real de la pieza para simular jugadas.
+        shape: this.currentPiece.shape.map(row => [...row]),
         position: { x: this.currentPiece.x, y: this.currentPiece.y }
       },
       nextPiece: { type: this.nextPiece.type }
@@ -75,6 +80,7 @@ export default class Game {
   // Ejecuta la acción indicada por la IA
   executeAction(action) {
     if (!this.isAIPlaying) return; // Evita que la IA actúe si no está activada
+    if (this.isClearing) return;   // Espera a que termine el borrado de líneas
 
     switch (action) {
       case 0: // No hacer nada (o mover hacia abajo)
@@ -195,11 +201,13 @@ export default class Game {
   checkLines() {
     const fullLines = this.board.getFullLines();
     if (fullLines.length > 0) {
+      this.isClearing = true;
       animateLineClear(this.boardElement, fullLines, () => {
         this.board.clearLines(fullLines);
         this.score += fullLines.length * 10;
         this.updateSpeed();
         this.updateScore();
+        this.isClearing = false;
       });
     } else {
       this.updateScore();
@@ -254,6 +262,7 @@ export default class Game {
   resetGame() {
     this.score = 0;
     this.level = 1;
+    this.isClearing = false;
     this.board.clear();
     this.spawnPiece();
     this.start();

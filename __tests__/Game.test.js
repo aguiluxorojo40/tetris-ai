@@ -187,3 +187,68 @@ describe('Game — estado para la IA y fin de partida', () => {
     expect(window.alert).toHaveBeenCalled();
   });
 });
+
+describe('Game — coordinación con la IA', () => {
+  let game;
+
+  beforeEach(() => {
+    setupDOM();
+    game = new Game(1000);
+    game.board.grid = emptyGrid();
+  });
+
+  afterEach(() => {
+    game.stop();
+    jest.useRealTimers();
+  });
+
+  test('executeAction se ignora si la IA no está activa', () => {
+    game.currentPiece = makePiece([[1]], 4, 0);
+    game.isAIPlaying = false;
+    game.executeAction(2); // derecha
+    expect(game.currentPiece.x).toBe(4);
+  });
+
+  test('executeAction mueve la pieza con la IA activa', () => {
+    game.currentPiece = makePiece([[1]], 4, 0);
+    game.isAIPlaying = true;
+    game.executeAction(2);
+    expect(game.currentPiece.x).toBe(5);
+  });
+
+  // Regresión: el borrado de líneas se anima durante 600 ms y, mientras tanto,
+  // la grilla sigue conteniendo las líneas completas. Si la IA seguía jugando
+  // durante ese intervalo, planificaba sobre un tablero desactualizado.
+  test('la IA no juega mientras se animan las líneas borradas', () => {
+    jest.useFakeTimers();
+    game.currentPiece = makePiece([[1]], 4, 0);
+    game.isAIPlaying = true;
+    game.board.grid[19] = new Array(10).fill(1);
+
+    game.checkLines();
+    expect(game.isClearing).toBe(true);
+
+    game.executeAction(2); // debe ignorarse
+    expect(game.currentPiece.x).toBe(4);
+
+    jest.advanceTimersByTime(600);
+    expect(game.isClearing).toBe(false);
+
+    game.executeAction(2); // ahora sí se aplica
+    expect(game.currentPiece.x).toBe(5);
+  });
+
+  test('resetGame limpia el tablero y la puntuación', () => {
+    game.currentPiece = makePiece([[1]], 4, 0);
+    game.nextPiece = makePiece([[1]], 4, 0);
+    game.score = 500;
+    game.board.grid[19][0] = 1;
+
+    game.resetGame();
+
+    expect(game.score).toBe(0);
+    expect(game.level).toBe(1);
+    expect(game.isClearing).toBe(false);
+    expect(game.board.grid[19][0]).toBe(0);
+  });
+});

@@ -51,6 +51,11 @@ export default class Board {
     }
   }
 
+  /** Vacía el tablero (se usa al reiniciar la partida). */
+  clear() {
+    this.grid = Array.from({ length: this.height }, () => new Array(this.width).fill(0));
+  }
+
   getFullLines() {
     const fullLines = [];
     this.grid.forEach((row, index) => {

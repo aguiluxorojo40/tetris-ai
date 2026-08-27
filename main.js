@@ -19,23 +19,21 @@ document.addEventListener('DOMContentLoaded', () => {
   let aiActive = false;
 
   /**
-   * Inicializa la IA cargando el modelo TFLite.
+   * Inicializa la IA. Es heurística y no carga ningún modelo, así que está
+   * lista de inmediato.
    */
-  async function initAI() {
-    toggleAIButton.disabled = true; // Deshabilita el botón mientras se carga la IA
-    ai = new AI(CONFIG.MODEL_PATH); // Ruta centralizada al modelo .tflite
-    await ai.loadModel(); 
-    toggleAIButton.disabled = false; // Habilita el botón una vez cargada la IA
+  function initAI() {
+    ai = new AI();
   }
 
   /**
    * Ciclo de la IA con requestAnimationFrame para no bloquear la interfaz.
    */
-  async function runAI() {
+  function runAI() {
     if (aiActive && game && game.isRunning) {
       const gameState = game.getGameState();
-      const action = await ai.predictAction(gameState);
-      if (action !== null) {
+      const action = ai.predictAction(gameState);
+      if (action !== null && action !== undefined) {
         game.executeAction(action);
       }
       requestAnimationFrame(runAI);
@@ -65,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (game) game.stop();
 
     const gravity = parseInt(difficultySelect.value, 10);
+    if (ai) ai.reset(); // descarta cualquier jugada planificada de la partida anterior
     game = new Game(gravity);
     game.start();
 

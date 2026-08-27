@@ -1,12 +1,34 @@
 # Tetris AI 1.2
 
 ## Descripción
-Este proyecto implementa una inteligencia artificial para el juego de Tetris. La IA está diseñada para maximizar la puntuación utilizando estrategias avanzadas.
+Tetris jugable en el navegador, con una IA capaz de jugar sola. Sin dependencias
+de runtime ni paso de compilación: son módulos ES nativos que se sirven tal cual.
 
 ## Características
-- Implementación de algoritmos de IA para Tetris.
-- Interfaz gráfica para visualizar el progreso del juego.
+- Tetris completo: rotación con wall kicks, pieza fantasma, hard drop y niveles.
+- Control por teclado, botones en pantalla y **cualquier gamepad**.
+- IA heurística que juega sola, sin dependencias externas.
 - Configuración ajustable para diferentes niveles de dificultad.
+
+## La IA
+
+La IA es **heurística**, no un modelo entrenado. Evalúa todas las posiciones
+finales posibles de la pieza actual (4 rotaciones × columnas disponibles),
+simula cómo quedaría el tablero y elige la mejor según cuatro factores:
+
+| Factor | Peso | Efecto |
+|---|---|---|
+| Altura acumulada | -0,51 | evita amontonar |
+| Líneas completadas | +0,76 | premia hacer líneas |
+| Huecos tapados | -0,36 | evita enterrar celdas |
+| Irregularidad del perfil | -0,18 | mantiene la superficie plana |
+
+Son los pesos clásicos de El-Tetris, ajustados por algoritmos genéticos.
+
+Anteriormente esto era un modelo TensorFlow.js, que se retiró: eran más de un
+megabyte de descarga para un Tetris de navegador, y el modelo nunca llegó a
+existir (su ruta era un placeholder). La heurística ocupa unos pocos kilobytes,
+es determinista, se puede testear y juega bien desde el primer momento.
 
 ## Instalación
 1. Clona el repositorio:
@@ -48,7 +70,7 @@ con varios mandos conectados a la vez.
 ### 1. Tests automáticos
 
 ```bash
-npm install
+npm install   # sólo instala Jest y Babel: el juego no tiene dependencias
 npm test
 ```
 

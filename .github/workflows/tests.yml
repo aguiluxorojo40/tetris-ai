@@ -22,15 +22,8 @@ jobs:
         with:
           node-version: '20'
 
-      # canvas es una dependencia con binario nativo; instalamos sus librerías
-      # de sistema para que pueda compilarse si no hubiese binario precompilado.
-      - name: Librerías de sistema para canvas
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
-
       - name: Instalar dependencias
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Ejecutar tests
         run: npm test -- --ci
