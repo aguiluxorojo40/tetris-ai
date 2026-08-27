@@ -1,4 +1,10 @@
-import { getRandomPiece, animateLineClear } from '../modules/Utils.js';
+import {
+  getRandomPiece,
+  animateLineClear,
+  createRandom,
+  createPieceSequence,
+  createPieceReader,
+} from '../modules/Utils.js';
 import { Piece } from '../modules/Piece.js';
 
 describe('Utils module', () => {
@@ -79,5 +85,62 @@ describe('Utils module', () => {
     // ...y sólo esas: el resto del tablero queda intacto.
     expect(boardElement.children[2].classList.contains('line-clear')).toBe(true);
     expect(callback).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('secuencia compartida de piezas', () => {
+  test('la misma semilla produce siempre la misma secuencia', () => {
+    const a = createPieceSequence(42);
+    const b = createPieceSequence(42);
+    for (let i = 0; i < 50; i++) {
+      expect(a(i).type).toBe(b(i).type);
+    }
+  });
+
+  test('semillas distintas producen secuencias distintas', () => {
+    const a = createPieceSequence(1);
+    const b = createPieceSequence(2);
+    const serieA = Array.from({ length: 30 }, (_, i) => a(i).type).join('');
+    const serieB = Array.from({ length: 30 }, (_, i) => b(i).type).join('');
+    expect(serieA).not.toBe(serieB);
+  });
+
+  // Es la garantía de que el duelo es justo: ambos reciben idénticas piezas.
+  test('dos lectores independientes reciben las mismas piezas en el mismo orden', () => {
+    const sequence = createPieceSequence(2024);
+    const jugador = createPieceReader(sequence);
+    const rival = createPieceReader(sequence);
+
+    for (let i = 0; i < 40; i++) {
+      expect(jugador().type).toBe(rival().type);
+    }
+  });
+
+  test('un lector avanza sin afectar al otro', () => {
+    const sequence = createPieceSequence(7);
+    const jugador = createPieceReader(sequence);
+    const rival = createPieceReader(sequence);
+
+    const primeras = [jugador().type, jugador().type, jugador().type];
+    // El rival, que va por detrás, debe recibir exactamente esas mismas piezas.
+    expect([rival().type, rival().type, rival().type]).toEqual(primeras);
+  });
+
+  test('las piezas de la secuencia son independientes entre sí', () => {
+    const sequence = createPieceSequence(99);
+    const primera = sequence(0);
+    primera.shape[0][0] = 9;
+    expect(sequence(0).shape.flat()).not.toContain(9);
+  });
+
+  test('createRandom es determinista y devuelve valores en [0, 1)', () => {
+    const a = createRandom(123);
+    const b = createRandom(123);
+    for (let i = 0; i < 20; i++) {
+      const valor = a();
+      expect(valor).toBe(b());
+      expect(valor).toBeGreaterThanOrEqual(0);
+      expect(valor).toBeLessThan(1);
+    }
   });
 });

@@ -10,7 +10,10 @@ export const CONFIG = {
     OPTIONS_BUTTON: 'optionsButton',
     BG_IMAGE_INPUT: 'bgImageInput',
     BOARD: 'board',
-    GAMEPAD_STATUS: 'gamepadStatus'
+    GAMEPAD_STATUS: 'gamepadStatus',
+    VERSUS_BUTTON: 'versusButton',
+    AI_SPEED: 'aiSpeed',
+    RESULT: 'result'
   },
 
   SELECTORS: {

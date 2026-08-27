@@ -252,3 +252,75 @@ describe('Game — coordinación con la IA', () => {
     expect(game.board.grid[19][0]).toBe(0);
   });
 });
+
+describe('Game — dos partidas simultáneas (modo versus)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="board"></div><span id="score"></span><span id="level"></span>
+      <div id="nextPiece"></div><button id="startButton"></button>
+      <div id="board2"></div><span id="score2"></span><span id="level2"></span>
+      <div id="nextPiece2"></div>
+      <button id="left"></button><button id="right"></button><button id="down"></button>
+      <button id="hardDrop"></button><button id="rotate"></button>
+    `;
+  });
+
+  const RIVAL_IDS = {
+    board: 'board2', score: 'score2', level: 'level2',
+    nextPiece: 'nextPiece2', startButton: null,
+  };
+
+  test('cada partida usa sus propios elementos del DOM', () => {
+    const uno = new Game(1000);
+    const dos = new Game(1000, { ids: RIVAL_IDS, controls: false });
+
+    expect(uno.boardElement.id).toBe('board');
+    expect(dos.boardElement.id).toBe('board2');
+    expect(dos.startButton).toBeNull();
+    expect(uno.board).not.toBe(dos.board);
+
+    uno.stop();
+    dos.stop();
+  });
+
+  test('pieceSource permite compartir la secuencia de piezas', () => {
+    const tipos = ['I', 'O', 'T', 'S'];
+    let i = 0;
+    const fuente = () => ({ type: tipos[i++ % 4], shape: [[1]], color: 'red', x: 0, y: 0 });
+
+    const game = new Game(1000, { pieceSource: fuente, controls: false });
+    expect(game.nextPiece.type).toBe('I');
+    game.stop();
+  });
+
+  // Regresión: stop() retiraba los listeners globales sin comprobar si esta
+  // partida los había registrado, así que al terminar la partida de la IA el
+  // jugador humano se quedaba sin controles.
+  test('detener la partida sin controles no desconecta a la otra', () => {
+    const humano = new Game(1000);            // controls: true por defecto
+    const rival = new Game(1000, { ids: RIVAL_IDS, controls: false });
+
+    humano.currentPiece = makePiece([[1]], 4, 0);
+    rival.stop();                             // no debe afectar al humano
+
+    document.getElementById('right')
+      .dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }));
+    expect(humano.currentPiece.x).toBe(5);
+
+    humano.stop();
+  });
+
+  test('onGameOver sustituye al aviso por defecto', () => {
+    window.alert = jest.fn();
+    const alPerder = jest.fn();
+    const game = new Game(1000, { controls: false, onGameOver: alPerder });
+
+    game.board.grid = Array.from({ length: 20 }, () => new Array(10).fill(1));
+    game.nextPiece = makePiece([[1, 1], [1, 1]], 0, 0, 'O');
+    game.spawnPiece();
+
+    expect(alPerder).toHaveBeenCalled();
+    expect(window.alert).not.toHaveBeenCalled();
+    expect(game.isRunning).toBe(false);
+  });
+});

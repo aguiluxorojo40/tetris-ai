@@ -1,77 +1,194 @@
 import Game from './modules/Game.js';
-import AI from './modules/AI.js'; // Asegúrate de que el nombre del archivo es consistente
+import AI from './modules/AI.js';
 import GamepadController from './modules/Gamepad.js';
-import { CONFIG } from './config.js'; // Archivo de configuración (ver abajo)
+import { createPieceSequence, createPieceReader } from './modules/Utils.js';
+import { CONFIG } from './config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elementos del DOM
   const startButton = document.getElementById(CONFIG.BUTTON_IDS.START_BUTTON);
   const difficultySelect = document.getElementById(CONFIG.BUTTON_IDS.DIFFICULTY_SELECT);
   const toggleAIButton = document.getElementById(CONFIG.BUTTON_IDS.TOGGLE_AI_BUTTON);
+  const versusButton = document.getElementById(CONFIG.BUTTON_IDS.VERSUS_BUTTON);
+  const aiSpeedSelect = document.getElementById(CONFIG.BUTTON_IDS.AI_SPEED);
   const optionsButton = document.getElementById(CONFIG.BUTTON_IDS.OPTIONS_BUTTON);
   const optionsMenu = document.querySelector(CONFIG.SELECTORS.OPTIONS_MENU);
   const bgImageInput = document.getElementById(CONFIG.BUTTON_IDS.BG_IMAGE_INPUT);
-  const tetrisBoard = document.getElementById(CONFIG.BUTTON_IDS.BOARD);
   const gamepadStatus = document.getElementById(CONFIG.BUTTON_IDS.GAMEPAD_STATUS);
+  const resultBanner = document.getElementById(CONFIG.BUTTON_IDS.RESULT);
+  const player1Name = document.getElementById('player1Name');
+  const player2 = document.getElementById('player2');
 
-  let game = null;
-  let ai = null;
-  let aiActive = false;
+  // Ids del tablero del rival en modo versus.
+  const RIVAL_IDS = {
+    board: 'board2',
+    score: 'score2',
+    level: 'level2',
+    nextPiece: 'nextPiece2',
+    startButton: null,
+  };
+
+  let game = null;        // tablero principal (jugador humano, o la IA en solitario)
+  let rivalGame = null;   // tablero de la IA en modo versus
+  let aiActive = false;   // la IA juega el tablero principal
+  let versus = false;
+  let matchOver = false;
+
+  const ai = new AI();       // cerebro del tablero principal
+  const rivalAI = new AI();  // cerebro del rival
+
+  // Milisegundos entre acciones de la IA. Sin freno actuaría una vez por frame,
+  // es decir 60 acciones por segundo: imposible de seguir con la vista.
+  let aiDelay = Number(aiSpeedSelect.value);
 
   /**
-   * Inicializa la IA. Es heurística y no carga ningún modelo, así que está
-   * lista de inmediato.
+   * Da un paso de IA sobre un tablero, respetando la cadencia elegida.
    */
-  function initAI() {
-    ai = new AI();
+  function stepAI(brain, target, timestamp) {
+    if (!target || !target.isRunning) return;
+    if (timestamp - (target.lastAIStep || 0) < aiDelay) return;
+    target.lastAIStep = timestamp;
+
+    const action = brain.predictAction(target.getGameState());
+    if (action !== null && action !== undefined) target.executeAction(action);
   }
 
   /**
-   * Ciclo de la IA con requestAnimationFrame para no bloquear la interfaz.
+   * Bucle único para ambos tableros: no bloquea la interfaz.
    */
-  function runAI() {
-    if (aiActive && game && game.isRunning) {
-      const gameState = game.getGameState();
-      const action = ai.predictAction(gameState);
-      if (action !== null && action !== undefined) {
-        game.executeAction(action);
-      }
-      requestAnimationFrame(runAI);
-    }
+  function loop(timestamp) {
+    if (aiActive && game) stepAI(ai, game, timestamp);
+    if (versus && rivalGame) stepAI(rivalAI, rivalGame, timestamp);
+
+    const sigue = (aiActive && game && game.isRunning) ||
+                  (versus && rivalGame && rivalGame.isRunning);
+    if (sigue) requestAnimationFrame(loop);
+  }
+
+  function runLoop() {
+    requestAnimationFrame(loop);
+  }
+
+  function showResult(texto) {
+    resultBanner.textContent = texto;
+    resultBanner.hidden = false;
+  }
+
+  function hideResult() {
+    resultBanner.hidden = true;
+  }
+
+  function stopGames() {
+    if (game) game.stop();
+    if (rivalGame) rivalGame.stop();
   }
 
   /**
-   * Alterna la activación de la IA.
+   * Alterna la activación de la IA sobre el tablero principal.
    */
   function toggleAI() {
+    if (versus) return; // en versus la IA siempre juega su propio tablero
+
     aiActive = !aiActive;
-    toggleAIButton.textContent = aiActive ? "Desactivar IA" : "Activar IA";
+    toggleAIButton.textContent = aiActive ? 'Desactivar IA' : 'Activar IA';
     toggleAIButton.setAttribute('aria-pressed', aiActive);
 
-    if (aiActive && ai && game && game.isRunning) {
-      game.isAIPlaying = true;
-      runAI();
-    } else if (game) {
-      game.isAIPlaying = false;
+    if (game) game.isAIPlaying = aiActive;
+    if (aiActive) {
+      ai.reset();
+      runLoop();
     }
   }
 
   /**
-   * Inicia el juego con la dificultad seleccionada.
+   * Alterna el modo versus. No arranca la partida: sólo prepara la interfaz.
    */
-  function startGame() {
+  function toggleVersus() {
+    versus = !versus;
+    stopGames();
+    hideResult();
+
+    versusButton.setAttribute('aria-pressed', versus);
+    versusButton.textContent = versus ? 'Salir de versus' : 'Versus';
+    player2.hidden = !versus;
+    document.body.classList.toggle('versus', versus);
+    player1Name.textContent = versus ? 'Tú' : 'Jugador';
+
+    // En versus la IA tiene su propio tablero: el interruptor no aplica.
+    toggleAIButton.disabled = versus;
+    if (versus && aiActive) {
+      aiActive = false;
+      toggleAIButton.textContent = 'Activar IA';
+      toggleAIButton.setAttribute('aria-pressed', false);
+    }
+
+    startButton.disabled = false;
+  }
+
+  /**
+   * Arranca una partida normal.
+   */
+  function startSingle() {
     if (game) game.stop();
+    hideResult();
 
     const gravity = parseInt(difficultySelect.value, 10);
-    if (ai) ai.reset(); // descarta cualquier jugada planificada de la partida anterior
+    ai.reset();
     game = new Game(gravity);
+    game.isAIPlaying = aiActive;
     game.start();
 
-    // Si la IA está activa al iniciar, comienza el ciclo de IA
-    if (aiActive && ai) {
-      game.isAIPlaying = true;
-      runAI();
-    }
+    if (aiActive) runLoop();
+  }
+
+  /**
+   * Arranca un duelo: dos tableros con la misma secuencia de piezas.
+   */
+  function startVersus() {
+    stopGames();
+    hideResult();
+    matchOver = false;
+
+    const gravity = parseInt(difficultySelect.value, 10);
+    // Una única secuencia sembrada, compartida por ambos: mismas piezas, mismo
+    // orden. Sin esto el duelo no sería comparable.
+    const sequence = createPieceSequence(Date.now() >>> 0);
+
+    const finish = quien => {
+      if (matchOver) return;
+      matchOver = true;
+      stopGames();
+      showResult(quien === 'humano'
+        ? `Gana la IA — tú ${game.score} · IA ${rivalGame.score}`
+        : `¡Ganas tú! — tú ${game.score} · IA ${rivalGame.score}`);
+      startButton.disabled = false;
+    };
+
+    ai.reset();
+    rivalAI.reset();
+
+    game = new Game(gravity, {
+      pieceSource: createPieceReader(sequence),
+      controls: true,
+      onGameOver: () => finish('humano'),
+    });
+
+    rivalGame = new Game(gravity, {
+      ids: RIVAL_IDS,
+      pieceSource: createPieceReader(sequence),
+      controls: false,   // el tablero de la IA no debe robar el teclado
+      onGameOver: () => finish('ia'),
+    });
+    rivalGame.isAIPlaying = true;
+
+    game.start();
+    rivalGame.start();
+    runLoop();
+  }
+
+  function startGame() {
+    if (versus) startVersus();
+    else startSingle();
   }
 
   /**
@@ -81,14 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const isShown = optionsMenu.classList.toggle('show');
     optionsButton.setAttribute('aria-expanded', isShown);
     optionsMenu.setAttribute('aria-hidden', !isShown);
-
-    // Para evitar que la IA siga actuando mientras mostramos el menú
-    if (isShown) {
-      aiActive = false;
-      if (game) game.isAIPlaying = false;
-      toggleAIButton.textContent = "Activar IA";
-      toggleAIButton.setAttribute('aria-pressed', false);
-    }
   }
 
   /**
@@ -96,34 +205,29 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   function changeBackground() {
     const file = bgImageInput.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const imageURL = e.target.result;
-        tetrisBoard.style.backgroundImage = `url('${imageURL}')`;
-        tetrisBoard.style.backgroundSize = 'cover';
-        tetrisBoard.style.backgroundPosition = 'center';
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      for (const id of ['board', 'board2']) {
+        const tablero = document.getElementById(id);
+        if (tablero) tablero.style.backgroundImage = `url('${e.target.result}')`;
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   /**
    * El mando sólo controla la pieza si hay partida en curso y la IA no juega
-   * (mismo criterio que el control por teclado).
+   * ese tablero (mismo criterio que el control por teclado).
    */
   function isManualPlayEnabled() {
     return Boolean(game && game.isRunning && !game.isAIPlaying);
   }
 
-  /**
-   * Muestra si hay algún mando conectado.
-   */
   function updateGamepadStatus(connected) {
     if (!gamepadStatus) return;
-    gamepadStatus.textContent = connected
-      ? '🎮 Mando conectado'
-      : '🎮 Sin mando';
+    gamepadStatus.textContent = connected ? '🎮 Mando conectado' : '🎮 Sin mando';
     gamepadStatus.classList.toggle('connected', connected);
   }
 
@@ -140,15 +244,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Event Listeners
-  toggleAIButton.addEventListener('click', toggleAI);
   startButton.addEventListener('click', startGame);
+  toggleAIButton.addEventListener('click', toggleAI);
+  versusButton.addEventListener('click', toggleVersus);
   optionsButton.addEventListener('click', toggleOptionsMenu);
   bgImageInput.addEventListener('change', changeBackground);
+  aiSpeedSelect.addEventListener('change', () => {
+    aiDelay = Number(aiSpeedSelect.value);
+  });
 
-  // Cargar la IA al inicio
-  initAI();
-
-  // Arrancar el sondeo del mando (si el navegador lo soporta).
   updateGamepadStatus(false);
   gamepad.start();
 });

@@ -3,13 +3,40 @@ import Board from './Board.js';
 import { getRandomPiece, animateLineClear } from './Utils.js';
 import { addControlListeners, removeControlListeners } from './Controls.js';
 
+// Elementos que usa un tablero por defecto. En el modo versus el segundo
+// jugador recibe otros ids, para que ambas partidas sean independientes.
+const DEFAULT_IDS = {
+  board: 'board',
+  score: 'score',
+  level: 'level',
+  nextPiece: 'nextPiece',
+  startButton: 'startButton',
+};
+
 export default class Game {
-  constructor(gravity) {
-    this.boardElement = document.getElementById('board');
-    this.scoreDisplay = document.getElementById('score');
-    this.levelDisplay = document.getElementById('level');
-    this.nextPieceBoard = document.getElementById('nextPiece');
-    this.startButton = document.getElementById('startButton');
+  /**
+   * @param {number} gravity - Milisegundos entre descensos automáticos.
+   * @param {Object} [options]
+   * @param {Object} [options.ids] - Ids de los elementos del DOM a usar.
+   * @param {Function} [options.pieceSource] - De dónde salen las piezas. Permite
+   *   compartir una secuencia entre dos jugadores.
+   * @param {boolean} [options.controls] - Si escucha teclado y botones táctiles.
+   *   El tablero de la IA no debe hacerlo.
+   * @param {Function} [options.onGameOver] - Sustituye al aviso por defecto.
+   */
+  constructor(gravity, options = {}) {
+    const ids = { ...DEFAULT_IDS, ...(options.ids || {}) };
+    const byId = id => (id ? document.getElementById(id) : null);
+
+    this.boardElement = byId(ids.board);
+    this.scoreDisplay = byId(ids.score);
+    this.levelDisplay = byId(ids.level);
+    this.nextPieceBoard = byId(ids.nextPiece);
+    this.startButton = byId(ids.startButton);
+
+    this.pieceSource = options.pieceSource || getRandomPiece;
+    this.onGameOver = options.onGameOver || null;
+    this.useControls = options.controls !== false;
 
     this.boardWidth = 10;
     this.boardHeight = 20;
@@ -20,7 +47,7 @@ export default class Game {
 
     this.board = new Board(this.boardWidth, this.boardHeight, this.boardElement);
     this.currentPiece = null;
-    this.nextPiece = getRandomPiece();
+    this.nextPiece = this.pieceSource();
 
     // Flags IA / Estado del juego
     this.isAIPlaying = false;
@@ -31,13 +58,15 @@ export default class Game {
     this.isClearing = false;
 
     this.keydownHandler = this.handleKeyDown.bind(this);
-    addControlListeners(this);
-    document.addEventListener('keydown', this.keydownHandler);
+    if (this.useControls) {
+      addControlListeners(this);
+      document.addEventListener('keydown', this.keydownHandler);
+    }
   }
 
   start() {
     this.isRunning = true;
-    this.startButton.disabled = true;
+    if (this.startButton) this.startButton.disabled = true;
     this.spawnPiece();
     this.draw();
     this.interval = setInterval(() => this.movePiece(0, 1), this.gravity);
@@ -45,16 +74,21 @@ export default class Game {
 
   stop() {
     clearInterval(this.interval);
+    this.interval = null;
     this.isRunning = false;
-    removeControlListeners();
-    document.removeEventListener('keydown', this.keydownHandler);
+    // Sólo retira los listeners quien los registró: de lo contrario el tablero
+    // de la IA, al terminar, dejaría sin controles al jugador humano.
+    if (this.useControls) {
+      removeControlListeners();
+      document.removeEventListener('keydown', this.keydownHandler);
+    }
   }
 
   spawnPiece() {
     this.currentPiece = this.nextPiece;
     this.currentPiece.x = Math.floor(this.boardWidth / 2) - Math.ceil(this.currentPiece.shape[0].length / 2);
     this.currentPiece.y = 0;
-    this.nextPiece = getRandomPiece();
+    this.nextPiece = this.pieceSource();
     this.drawNextPiece();
 
     // Si no puede moverse en la posición inicial => Game Over
@@ -215,13 +249,13 @@ export default class Game {
   }
 
   updateScore() {
-    this.scoreDisplay.textContent = this.score;
+    if (this.scoreDisplay) this.scoreDisplay.textContent = this.score;
   }
 
   updateSpeed() {
     const levelUp = Math.floor(this.score / 100);
     this.level = 1 + levelUp;
-    this.levelDisplay.textContent = this.level;
+    if (this.levelDisplay) this.levelDisplay.textContent = this.level;
 
     // Ajustar la velocidad de descenso
     clearInterval(this.interval);
@@ -250,12 +284,19 @@ export default class Game {
 
   gameOver() {
     this.stop();
+
+    // En el modo versus decide quien orquesta la partida.
+    if (this.onGameOver) {
+      this.onGameOver(this);
+      return;
+    }
+
     // Si la IA está activa, reiniciar para seguir entrenando
     if (this.isAIPlaying) {
       this.resetGame();
     } else {
       alert('Game Over!');
-      this.startButton.disabled = false;
+      if (this.startButton) this.startButton.disabled = false;
     }
   }
 
@@ -280,7 +321,7 @@ export default class Game {
   }
 
   drawNextPiece() {
-    // Implement the drawNextPiece method
+    if (!this.nextPieceBoard) return;
     // Clear the next piece board
     while (this.nextPieceBoard.firstChild) {
       this.nextPieceBoard.removeChild(this.nextPieceBoard.firstChild);

@@ -10,6 +10,24 @@ de runtime ni paso de compilación: son módulos ES nativos que se sirven tal cu
 - IA heurística que juega sola, sin dependencias externas.
 - Configuración ajustable para diferentes niveles de dificultad.
 
+## Modo versus
+
+Dos tableros enfrentados: tú a la izquierda, la IA a la derecha. Ambos reciben
+**exactamente la misma secuencia de piezas** (un generador sembrado y compartido,
+no `Math.random`), de modo que el duelo es comparable. Pierde quien desborde
+primero, y el marcador anuncia el resultado.
+
+La IA actúa una vez por frame si se la deja suelta, es decir 60 acciones por
+segundo: imposible de seguir con la vista, e imposible de ganar. El selector
+**Velocidad IA** regula su cadencia:
+
+| Ajuste | Cadencia |
+|---|---|
+| Lenta | una acción cada 300 ms |
+| Normal | cada 120 ms |
+| Rápida | cada 40 ms |
+| Bestia | sin freno, una por frame |
+
 ## La IA
 
 La IA es **heurística**, no un modelo entrenado. Evalúa todas las posiciones

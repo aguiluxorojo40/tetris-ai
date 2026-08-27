@@ -39,6 +39,60 @@ body {
 
 /* ----- Zona de juego ----------------------------------------------------- */
 
+/* Contenedor de tableros: uno solo, o dos enfrentados en modo versus. */
+.boards {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.player {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 460px;
+}
+
+.player[hidden] { display: none; }
+
+.player-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.player-name { font-weight: 600; opacity: 0.85; }
+.player-score { font-weight: 600; color: #ffecb3; font-size: 0.95rem; }
+.player-level { opacity: 0.7; }
+
+/* El tablero de la IA se distingue con un tinte propio. */
+#player2 .tetris-board { border-color: rgba(255, 180, 120, 0.9); }
+#player2 .player-score { color: #ffcc80; }
+
+.result {
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1rem;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.result[hidden] { display: none; }
+
+.speed-label { font-size: 0.8rem; opacity: 0.8; align-self: center; }
+
 .play-area {
   flex: 1;                     /* ocupa todo el espacio sobrante */
   min-height: 0;               /* imprescindible para que pueda encogerse */
@@ -77,32 +131,6 @@ body {
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.hud {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-
-.hud-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-}
-
-.hud-label { opacity: 0.7; }
-
-.hud-value {
-  font-weight: 600;
-  color: #ffecb3;
-  font-size: 1rem;
-  min-width: 2ch;
 }
 
 .next-piece {
@@ -245,8 +273,6 @@ body {
     overflow-y: auto;
   }
 
-  .hud { flex-wrap: wrap; }
-
-  /* En horizontal sobra ancho pero falta alto: botones más bajos. */
-  .controls button { min-height: clamp(34px, 14vh, 52px); }
-}
+  /* Con dos tableros el espacio es la mitad: se aprieta todo un poco. */
+body.versus .player-head { font-size: 0.7rem; gap: 5px; padding: 3px 5px; }
+body.versus .next-piece { grid-template-columns: repeat(4, 6px); grid-template-rows: repeat(4, 6px); }

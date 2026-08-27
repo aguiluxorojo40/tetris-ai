@@ -9,36 +9,46 @@
 <body>
   <div class="game-container">
 
-    <!-- Zona de juego: el tablero se escala para caber siempre entero -->
-    <div class="play-area">
-      <div class="tetris-board" id="board" aria-label="Tablero de Tetris"></div>
-    </div>
+    <!-- Tableros. El segundo sólo aparece en modo versus. -->
+    <div class="boards" id="boards">
 
-    <!-- Lateral: marcadores, controles táctiles y acciones -->
-    <div class="side">
-
-      <div class="hud" aria-label="Panel de Información">
-        <div class="hud-item">
-          <span class="hud-label">Score</span>
-          <span class="hud-value" id="score">0</span>
-        </div>
-        <div class="hud-item">
-          <span class="hud-label">Level</span>
-          <span class="hud-value" id="level">1</span>
-        </div>
-        <div class="hud-item hud-next">
-          <span class="hud-label">Next</span>
+      <section class="player" id="player1">
+        <div class="player-head">
+          <span class="player-name" id="player1Name">Jugador</span>
+          <span class="player-score" id="score">0</span>
+          <span class="player-level">Nv <span id="level">1</span></span>
           <div class="next-piece" id="nextPiece" aria-label="Próxima Pieza"></div>
         </div>
-      </div>
+        <div class="play-area">
+          <div class="tetris-board" id="board" aria-label="Tablero de Tetris"></div>
+        </div>
+      </section>
+
+      <section class="player" id="player2" hidden>
+        <div class="player-head">
+          <span class="player-name">IA</span>
+          <span class="player-score" id="score2">0</span>
+          <span class="player-level">Nv <span id="level2">1</span></span>
+          <div class="next-piece" id="nextPiece2" aria-label="Próxima Pieza de la IA"></div>
+        </div>
+        <div class="play-area">
+          <div class="tetris-board" id="board2" aria-label="Tablero de la IA"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="side">
+
+      <p class="result" id="result" aria-live="polite" hidden></p>
 
       <!-- Controles táctiles: la única forma de jugar en un móvil -->
       <div class="controls" aria-label="Controles Manuales">
         <button id="rotate" class="btn-rotate" aria-label="Rotar Pieza">⟳</button>
+        <button id="hardDrop" class="btn-drop" aria-label="Hard Drop">⤓</button>
         <button id="left" class="btn-left" aria-label="Mover Izquierda">←</button>
         <button id="down" class="btn-down" aria-label="Mover Abajo">↓</button>
         <button id="right" class="btn-right" aria-label="Mover Derecha">→</button>
-        <button id="hardDrop" class="btn-drop" aria-label="Hard Drop">⤓</button>
       </div>
 
       <div class="actions">
@@ -48,8 +58,19 @@
           <option value="300">Difícil</option>
           <option value="700">Fácil</option>
         </select>
+        <button id="versusButton" aria-pressed="false">Versus</button>
         <button id="toggleAIButton" aria-pressed="false">Activar IA</button>
         <button id="optionsButton" aria-controls="optionsMenu" aria-expanded="false">Opciones</button>
+      </div>
+
+      <div class="actions">
+        <label class="speed-label" for="aiSpeed">Velocidad IA</label>
+        <select id="aiSpeed" aria-label="Velocidad de la IA">
+          <option value="300">Lenta</option>
+          <option value="120" selected>Normal</option>
+          <option value="40">Rápida</option>
+          <option value="0">Bestia</option>
+        </select>
       </div>
 
       <p id="gamepadStatus" class="gamepad-status" aria-live="polite">🎮 Sin mando</p>
@@ -63,6 +84,13 @@
 
       <label for="bgImageInput">Imagen de fondo del tablero:</label>
       <input type="file" id="bgImageInput" accept="image/*">
+
+      <h3>Modo versus</h3>
+      <p class="gamepad-hint">
+        Dos tableros enfrentados con exactamente la misma secuencia de piezas.
+        Pierde quien desborde primero. Puedes bajarle la velocidad a la IA si
+        quieres tener alguna posibilidad.
+      </p>
 
       <h3>Controles del mando</h3>
       <ul class="gamepad-legend">
