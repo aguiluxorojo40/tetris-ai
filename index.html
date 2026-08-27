@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tetris 2D/3D Modular</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Resuelve el especificador desnudo de TensorFlow cuando se activa la IA.
+       Debe declararse antes de cualquier <script type="module">. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@tensorflow/tfjs": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/+esm"
+    }
+  }
+  </script>
 </head>
 <body>
   <div class="game-container">

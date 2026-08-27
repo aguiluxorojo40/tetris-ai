@@ -28,7 +28,9 @@
     "jest-environment-jsdom": "^29.7.0"
   },
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "serve": "python3 -m http.server 8000",
+    "serve:node": "npx --yes http-server -p 8000 -c-1"
   },
   "jest": {
     "setupFiles": [

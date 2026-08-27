@@ -1,21 +1,36 @@
-import * as tf from '@tensorflow/tfjs';
-import '@tensorflow/tfjs-tflite';
+// TensorFlow se carga de forma perezosa (import dinámico) por dos motivos:
+//  1. El juego debe poder ejecutarse sin la librería: es una dependencia muy
+//     pesada que sólo hace falta si se activa la IA.
+//  2. Con un import estático, un fallo al resolver el especificador rompería
+//     todo el grafo de módulos y la página no arrancaría.
+let tfPromise = null;
+
+function loadTensorFlow() {
+  if (!tfPromise) {
+    tfPromise = import('@tensorflow/tfjs');
+  }
+  return tfPromise;
+}
 
 export default class AI {
   constructor(modelPath) {
     this.modelPath = modelPath;
     this.model = null;
+    this.tf = null;
   }
 
   /**
-   * Carga el modelo TFLite utilizando tfjs-tflite.
+   * Carga el modelo. Si TensorFlow o el modelo no están disponibles, se
+   * registra el error y el juego sigue siendo jugable sin IA.
    */
   async loadModel() {
     try {
-      this.model = await tf.loadGraphModel(this.modelPath, { fromTFHub: false });
+      this.tf = await loadTensorFlow();
+      this.model = await this.tf.loadGraphModel(this.modelPath, { fromTFHub: false });
       console.log("Modelo de IA cargado con éxito.");
     } catch (error) {
       console.error("Error al cargar el modelo de IA:", error);
+      this.model = null;
     }
   }
 
@@ -25,7 +40,7 @@ export default class AI {
    * @returns {number|null} - Acción recomendada o null en caso de error.
    */
   async predictAction(gameState) {
-    if (!this.model) {
+    if (!this.model || !this.tf) {
       console.error("Modelo no cargado. Asegúrate de llamar a loadModel primero.");
       return null;
     }
@@ -36,19 +51,17 @@ export default class AI {
       const normalizedState = gameState.map(cell => cell / 7);
 
       // Convierte el estado normalizado a un tensor de 2D (batch_size: 1)
-      const inputTensor = tf.tensor2d([normalizedState], [1, normalizedState.length]);
+      const inputTensor = this.tf.tensor2d([normalizedState], [1, normalizedState.length]);
 
       // Realiza la predicción utilizando el modelo.
       const prediction = await this.model.predict(inputTensor);
 
       // Procesa la salida del modelo para determinar la acción.
-      // Esto dependerá de cómo esté estructurada la salida de tu modelo.
-      // Por ejemplo, si la salida es un vector de probabilidades para cada acción:
       const predictionData = prediction.dataSync();
       const action = predictionData.indexOf(Math.max(...predictionData));
 
       // Libera la memoria de los tensores.
-      tf.dispose([inputTensor, prediction]);
+      this.tf.dispose([inputTensor, prediction]);
 
       return action;
     } catch (error) {
@@ -58,9 +71,9 @@ export default class AI {
   }
 
   /**
-   * Simula una acción de IA basada en el movimiento predicho.
-   * @param {Array} board - Representación del tablero del juego.
-   * @returns {string} - Descripción de la acción realizada.
+   * Traduce la acción predicha a un movimiento del juego.
+   * @param {Array} gameState - Representación del estado del juego.
+   * @returns {Promise<string>} - Descripción de la acción realizada.
    */
   async makeMove(gameState) {
     // predictAction es asíncrona: hay que esperar el resultado antes de mapearlo.
