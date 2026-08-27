@@ -241,15 +241,28 @@ describe('AI — planificación sin estado', () => {
     expect(ai.target).not.toBe(destino);
   });
 
-  test('no gira indefinidamente si la rotación está bloqueada', () => {
+  // Salvaguarda: si una rotación queda bloqueada contra la pared, la forma
+  // nunca llegaría a coincidir con el destino. Tras cuatro intentos (un giro
+  // completo) la IA suelta la pieza en lugar de girar sin fin.
+  test('no gira indefinidamente si la forma objetivo no se alcanza', () => {
     const ai = new AI();
     const grid = emptyGrid();
-    // La forma nunca coincide con el destino porque no la giramos nunca.
-    let ultima = null;
-    for (let i = 0; i < 10; i++) {
-      ultima = ai.predictAction(estado(grid, [[0, 1, 0], [1, 1, 1]], 4));
+    const forma = [[1]];
+
+    ai.predictAction(estado(grid, forma, 4, 1));
+    // Forzamos un destino cuya forma no coincidirá jamás con la pieza.
+    ai.target = { x: 4, rotations: 1, shape: [[1], [1]], score: 0 };
+    ai.rotationsTried = 0;
+
+    const acciones = [];
+    for (let i = 0; i < 8; i++) {
+      acciones.push(ai.predictAction(estado(grid, forma, 4, 1))); // misma pieza
     }
-    expect(ultima).toBe(ACTION.HARD_DROP);
+
+    expect(acciones.slice(0, 4)).toEqual([
+      ACTION.ROTATE, ACTION.ROTATE, ACTION.ROTATE, ACTION.ROTATE,
+    ]);
+    expect(acciones[acciones.length - 1]).toBe(ACTION.HARD_DROP);
   });
 
   test('reset olvida el destino', () => {
