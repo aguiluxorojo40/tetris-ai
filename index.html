@@ -17,6 +17,7 @@
           <span class="player-name" id="player1Name">Jugador</span>
           <span class="player-score" id="score">0</span>
           <span class="player-level">Nv <span id="level">1</span></span>
+          <span class="garbage" id="garbage" aria-label="Basura entrante"></span>
           <div class="next-piece" id="nextPiece" aria-label="Próxima Pieza"></div>
         </div>
         <div class="play-area">
@@ -29,6 +30,7 @@
           <span class="player-name">IA</span>
           <span class="player-score" id="score2">0</span>
           <span class="player-level">Nv <span id="level2">1</span></span>
+          <span class="garbage" id="garbage2" aria-label="Basura entrante de la IA"></span>
           <div class="next-piece" id="nextPiece2" aria-label="Próxima Pieza de la IA"></div>
         </div>
         <div class="play-area">
@@ -64,12 +66,12 @@
       </div>
 
       <div class="actions">
-        <label class="speed-label" for="aiSpeed">Velocidad IA</label>
-        <select id="aiSpeed" aria-label="Velocidad de la IA">
-          <option value="300">Lenta</option>
-          <option value="120" selected>Normal</option>
-          <option value="40">Rápida</option>
-          <option value="0">Bestia</option>
+        <label class="speed-label" for="aiLevel">Nivel IA</label>
+        <select id="aiLevel" aria-label="Nivel de la IA">
+          <option value="principiante">Principiante</option>
+          <option value="normal" selected>Normal</option>
+          <option value="dificil">Difícil</option>
+          <option value="imposible">Imposible</option>
         </select>
       </div>
 
@@ -88,8 +90,17 @@
       <h3>Modo versus</h3>
       <p class="gamepad-hint">
         Dos tableros enfrentados con exactamente la misma secuencia de piezas.
-        Pierde quien desborde primero. Puedes bajarle la velocidad a la IA si
-        quieres tener alguna posibilidad.
+        Despejar líneas envía filas de basura al rival, según la tabla de ataque
+        estándar: un doble envía 1, un triple 2 y un tetris 4. La basura queda
+        en cola (el contador ⬆) y sólo entra al fijar una pieza sin despejar,
+        así que despejar líneas primero la cancela. Pierde quien desborde.
+      </p>
+
+      <h3>Nivel de la IA</h3>
+      <p class="gamepad-hint">
+        La IA usa la función de evaluación de Dellacherie y, a pleno rendimiento,
+        es prácticamente imbatible. Los niveles la gradúan en dos ejes: cada
+        cuánto actúa y con qué frecuencia elige adrede una jugada mediocre.
       </p>
 
       <h3>Controles del mando</h3>

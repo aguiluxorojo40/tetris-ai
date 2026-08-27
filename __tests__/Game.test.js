@@ -1,4 +1,4 @@
-import Game from '../modules/Game.js';
+import Game, { ATTACK_TABLE } from '../modules/Game.js';
 
 // -----------------------------------------------------------------------------
 // Utilidades de test
@@ -136,14 +136,26 @@ describe('Game — bloqueo, hard drop y líneas', () => {
     expect(game.score).toBe(38);
   });
 
-  test('checkLines elimina una línea completa y suma 10 puntos por línea', () => {
+  // Regresión: el borrado se difería 600 ms por la animación. Durante esa
+  // ventana la grilla seguía conteniendo las líneas completas, la IA
+  // planificaba sobre un tablero obsoleto y, peor aún, la gravedad seguía
+  // fijando piezas sin control. Ahora es atómico y la animación, decorativa.
+  test('checkLines borra la línea y puntúa de forma atómica', () => {
     jest.useFakeTimers();
     game.currentPiece = makePiece([[1]], 0, 0);
     game.board.grid[19] = new Array(10).fill(1); // fila completa
-    game.checkLines();
-    jest.advanceTimersByTime(600); // completa la animación de borrado
+
+    const despejadas = game.checkLines();
+
+    // Sin avanzar un solo milisegundo, el tablero ya está limpio.
+    expect(despejadas).toBe(1);
     expect(game.score).toBe(10);
     expect(game.board.grid[19].every(cell => cell === 0)).toBe(true);
+  });
+
+  test('checkLines devuelve 0 si no hay líneas completas', () => {
+    game.currentPiece = makePiece([[1]], 0, 0);
+    expect(game.checkLines()).toBe(0);
   });
 });
 
@@ -216,28 +228,6 @@ describe('Game — coordinación con la IA', () => {
     expect(game.currentPiece.x).toBe(5);
   });
 
-  // Regresión: el borrado de líneas se anima durante 600 ms y, mientras tanto,
-  // la grilla sigue conteniendo las líneas completas. Si la IA seguía jugando
-  // durante ese intervalo, planificaba sobre un tablero desactualizado.
-  test('la IA no juega mientras se animan las líneas borradas', () => {
-    jest.useFakeTimers();
-    game.currentPiece = makePiece([[1]], 4, 0);
-    game.isAIPlaying = true;
-    game.board.grid[19] = new Array(10).fill(1);
-
-    game.checkLines();
-    expect(game.isClearing).toBe(true);
-
-    game.executeAction(2); // debe ignorarse
-    expect(game.currentPiece.x).toBe(4);
-
-    jest.advanceTimersByTime(600);
-    expect(game.isClearing).toBe(false);
-
-    game.executeAction(2); // ahora sí se aplica
-    expect(game.currentPiece.x).toBe(5);
-  });
-
   test('resetGame limpia el tablero y la puntuación', () => {
     game.currentPiece = makePiece([[1]], 4, 0);
     game.nextPiece = makePiece([[1]], 4, 0);
@@ -248,7 +238,7 @@ describe('Game — coordinación con la IA', () => {
 
     expect(game.score).toBe(0);
     expect(game.level).toBe(1);
-    expect(game.isClearing).toBe(false);
+    expect(game.pendingGarbage).toBe(0);
     expect(game.board.grid[19][0]).toBe(0);
   });
 });
@@ -322,5 +312,109 @@ describe('Game — dos partidas simultáneas (modo versus)', () => {
     expect(alPerder).toHaveBeenCalled();
     expect(window.alert).not.toHaveBeenCalled();
     expect(game.isRunning).toBe(false);
+  });
+});
+
+describe('Game — basura del modo versus', () => {
+  let game;
+
+  beforeEach(() => {
+    setupDOM();
+    game = new Game(1000, { controls: false });
+    game.board.grid = emptyGrid();
+  });
+
+  afterEach(() => game.stop());
+
+  test('la tabla de ataque es la estándar', () => {
+    // simple 0, doble 1, triple 2, tetris 4
+    expect(ATTACK_TABLE).toEqual([0, 0, 1, 2, 4]);
+  });
+
+  test.each([
+    [1, 0, 'un simple'],
+    [2, 1, 'un doble'],
+    [3, 2, 'un triple'],
+    [4, 4, 'un tetris'],
+  ])('%s envía %i filas (%s)', (lineas, esperado) => {
+    const enviado = jest.fn();
+    game.onAttack = enviado;
+    for (let i = 0; i < lineas; i++) game.board.grid[19 - i] = new Array(10).fill(1);
+
+    game.checkLines();
+
+    if (esperado === 0) expect(enviado).not.toHaveBeenCalled();
+    else expect(enviado).toHaveBeenCalledWith(esperado);
+  });
+
+  test('receiveGarbage encola sin tocar el tablero', () => {
+    game.receiveGarbage(3);
+    expect(game.pendingGarbage).toBe(3);
+    expect(game.board.grid[19].every(c => c === 0)).toBe(true);
+  });
+
+  // Defenderse tiene prioridad: lo que uno despeja cancela primero su propia
+  // basura entrante y sólo el sobrante ataca al rival.
+  test('despejar líneas cancela la basura entrante antes de atacar', () => {
+    const enviado = jest.fn();
+    game.onAttack = enviado;
+    game.receiveGarbage(3);
+
+    // Un tetris ataca con 4: cancela las 3 pendientes y envía 1.
+    for (let i = 0; i < 4; i++) game.board.grid[19 - i] = new Array(10).fill(1);
+    game.checkLines();
+
+    expect(game.pendingGarbage).toBe(0);
+    expect(enviado).toHaveBeenCalledWith(1);
+  });
+
+  test('si la cancelación absorbe todo el ataque, no se envía nada', () => {
+    const enviado = jest.fn();
+    game.onAttack = enviado;
+    game.receiveGarbage(5);
+
+    for (let i = 0; i < 3; i++) game.board.grid[19 - i] = new Array(10).fill(1); // triple: 2
+    game.checkLines();
+
+    expect(game.pendingGarbage).toBe(3);
+    expect(enviado).not.toHaveBeenCalled();
+  });
+
+  test('la basura entra al fijar una pieza sin despejar líneas', () => {
+    game.random = () => 0; // hueco siempre en la columna 0
+    game.receiveGarbage(2);
+    game.currentPiece = makePiece([[1]], 5, 0);
+    game.isAIPlaying = true;
+
+    game.executeAction(4); // hard drop, sin completar línea
+
+    expect(game.pendingGarbage).toBe(0);
+    expect(game.board.grid[19][0]).toBe(0);        // el hueco
+    expect(game.board.grid[19][1]).toBe(1);
+    expect(game.board.grid[18][0]).toBe(0);        // mismo hueco en ambas filas
+  });
+
+  test('la basura no entra si la jugada despeja líneas', () => {
+    game.onAttack = () => {};
+    game.receiveGarbage(2);
+    game.board.grid[19] = new Array(10).fill(1);
+    game.board.grid[19][5] = 0;
+    game.currentPiece = makePiece([[1]], 5, 0);
+    game.isAIPlaying = true;
+
+    game.executeAction(4); // completa la línea
+
+    expect(game.pendingGarbage).toBe(2); // sigue en cola
+  });
+
+  test('la basura que desborda el tablero termina la partida', () => {
+    const perdida = jest.fn();
+    game.onGameOver = perdida;
+    game.board.grid[0][0] = 1;  // hay pila hasta arriba
+    game.receiveGarbage(3);
+
+    game.applyPendingGarbage();
+
+    expect(perdida).toHaveBeenCalled();
   });
 });

@@ -14,83 +14,68 @@ de runtime ni paso de compilación: son módulos ES nativos que se sirven tal cu
 
 Dos tableros enfrentados: tú a la izquierda, la IA a la derecha. Ambos reciben
 **exactamente la misma secuencia de piezas** (un generador sembrado y compartido,
-no `Math.random`), de modo que el duelo es comparable. Pierde quien desborde
-primero, y el marcador anuncia el resultado.
+no `Math.random`), de modo que el duelo es comparable.
 
-La IA actúa una vez por frame si se la deja suelta, es decir 60 acciones por
-segundo: imposible de seguir con la vista, e imposible de ganar. El selector
-**Velocidad IA** regula su cadencia:
+### Basura
 
-| Ajuste | Cadencia |
+Sigue la tabla de ataque estándar del Tetris moderno:
+
+| Despejas | Envías |
 |---|---|
-| Lenta | una acción cada 300 ms |
-| Normal | cada 120 ms |
-| Rápida | cada 40 ms |
-| Bestia | sin freno, una por frame |
+| Simple | — |
+| Doble | 1 fila |
+| Triple | 2 filas |
+| Tetris | 4 filas |
+
+La basura entrante queda **en cola** (contador ⬆) y sólo entra al tablero al
+fijar una pieza *sin* despejar líneas. Eso da margen para contrarrestarla:
+despejar líneas cancela primero la basura propia pendiente y sólo el sobrante
+ataca al rival. Todas las filas de un mismo envío comparten la columna del
+hueco ("basura limpia"), así que una I vertical las despeja de golpe. Pierde
+quien desborde.
+
+### Nivel de la IA
+
+Regular sólo la velocidad no bastaba: la IA seguía siendo perfecta. Los niveles
+la gradúan en dos ejes, cada cuánto actúa y con qué frecuencia elige adrede una
+jugada mediocre (de la mitad peor de la lista, que es como falla un humano).
+
+| Nivel | Cadencia | Fallos | Desbordes medidos |
+|---|---|---|---|
+| Principiante | 450 ms | 35 % | ~4 por cada 150 piezas |
+| Normal | 250 ms | 15 % | ~3 por cada 150 piezas |
+| Difícil | 120 ms | 5 % | ~1 por cada 150 piezas |
+| Imposible | 40 ms | 0 % | 0 en 500 piezas |
 
 ## La IA
 
 La IA es **heurística**, no un modelo entrenado. Evalúa todas las posiciones
 finales posibles de la pieza actual (4 rotaciones × columnas disponibles),
-simula cómo quedaría el tablero y elige la mejor según cuatro factores:
+simula cómo quedaría el tablero y elige la mejor según la **función de
+evaluación de Pierre Dellacherie**, la referencia clásica del problema:
 
-| Factor | Peso | Efecto |
-|---|---|---|
-| Altura acumulada | -0,51 | evita amontonar |
-| Líneas completadas | +0,76 | premia hacer líneas |
-| Huecos tapados | -0,36 | evita enterrar celdas |
-| Irregularidad del perfil | -0,18 | mantiene la superficie plana |
+```
+puntuación = -4·huecos - pozos acumulados - transiciones de fila
+             - transiciones de columna - altura de caída + celdas erosionadas
+```
 
-Son los pesos clásicos de El-Tetris, ajustados por algoritmos genéticos.
+| Rasgo | Qué mide |
+|---|---|
+| Huecos | celdas vacías tapadas por bloques |
+| Pozos acumulados | suma de profundidades; un pozo de 3 pesa 1+2+3 |
+| Transiciones de fila | alternancias lleno/vacío recorriendo cada fila |
+| Transiciones de columna | ídem por columnas |
+| Altura de caída | a qué altura queda la pieza |
+| Celdas erosionadas | líneas despejadas × celdas propias en ellas |
+
+El planificador **no guarda una lista de pasos**: en cada llamada deduce la
+siguiente acción comparando la pieza actual con su destino. Es lo que la hace
+robusta, porque entre dos acciones puede pasar cualquier cosa (la gravedad baja
+o fija la pieza) que dejaría obsoleto un plan preestablecido.
 
 Anteriormente esto era un modelo TensorFlow.js, que se retiró: eran más de un
 megabyte de descarga para un Tetris de navegador, y el modelo nunca llegó a
-existir (su ruta era un placeholder). La heurística ocupa unos pocos kilobytes,
-es determinista, se puede testear y juega bien desde el primer momento.
-
-## Instalación
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/aguiluxorojo40/tetris-ai.git
-
-## Controles
-
-### Táctil (móvil)
-Botones en pantalla situados bajo el tablero, al alcance del pulgar. Mantener
-pulsado ← → o ↓ repite el movimiento; rotar y hard drop se disparan una sola
-vez por pulsación.
-
-La interfaz se adapta a la orientación: en vertical el tablero queda arriba y
-los controles abajo; en horizontal, el tablero a la izquierda y todo lo demás
-a la derecha. El tablero se escala para caber entero, sin scroll.
-
-### Teclado
-| Tecla | Acción |
-|-------|--------|
-| ← / → | Mover pieza |
-| ↓ | Bajar (soft drop) |
-| ↑ | Rotar |
-| Espacio | Hard drop |
-
-### Mando (cualquier gamepad)
-El juego es compatible con cualquier mando que soporte la Gamepad API. En lugar
-de depender de la etiqueta de cada botón (que varía entre fabricantes), las
-acciones se enlazan a *regiones físicas* del mando, de modo que un controlador
-desconocido sigue siendo jugable.
-
-| Control | Acción |
-|---------|--------|
-| Cruceta / stick izquierdo | Mover y bajar |
-| Cualquier botón frontal (A/B/X/Y) o arriba | Rotar |
-| Cualquier gatillo o bumper (L1/R1/L2/R2) | Hard drop |
-| Start / Select | Iniciar partida |
-
-También se soporta el *hat switch* de los mandos genéricos y se admite el juego
-con varios mandos conectados a la vez.
-
-> Nota: por privacidad, los navegadores no exponen un mando hasta que se pulsa
-> algún botón. Si el indicador muestra "Sin mando", pulsa cualquier botón.
-
+existir (su ruta era un placeholder).
 
 ## Cómo probarlo
 

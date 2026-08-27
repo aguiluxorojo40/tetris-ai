@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const difficultySelect = document.getElementById(CONFIG.BUTTON_IDS.DIFFICULTY_SELECT);
   const toggleAIButton = document.getElementById(CONFIG.BUTTON_IDS.TOGGLE_AI_BUTTON);
   const versusButton = document.getElementById(CONFIG.BUTTON_IDS.VERSUS_BUTTON);
-  const aiSpeedSelect = document.getElementById(CONFIG.BUTTON_IDS.AI_SPEED);
+  const aiLevelSelect = document.getElementById(CONFIG.BUTTON_IDS.AI_LEVEL);
   const optionsButton = document.getElementById(CONFIG.BUTTON_IDS.OPTIONS_BUTTON);
   const optionsMenu = document.querySelector(CONFIG.SELECTORS.OPTIONS_MENU);
   const bgImageInput = document.getElementById(CONFIG.BUTTON_IDS.BG_IMAGE_INPUT);
@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     score: 'score2',
     level: 'level2',
     nextPiece: 'nextPiece2',
+    garbage: 'garbage2',
     startButton: null,
   };
 
@@ -34,12 +35,24 @@ document.addEventListener('DOMContentLoaded', () => {
   let versus = false;
   let matchOver = false;
 
-  const ai = new AI();       // cerebro del tablero principal
-  const rivalAI = new AI();  // cerebro del rival
+  let ai = new AI();       // cerebro del tablero principal
+  let rivalAI = new AI();  // cerebro del rival
+
+  function nivelActual() {
+    return CONFIG.AI_LEVELS[aiLevelSelect.value] || CONFIG.AI_LEVELS.normal;
+  }
 
   // Milisegundos entre acciones de la IA. Sin freno actuaría una vez por frame,
   // es decir 60 acciones por segundo: imposible de seguir con la vista.
-  let aiDelay = Number(aiSpeedSelect.value);
+  let aiDelay = nivelActual().delay;
+
+  function aplicarNivel() {
+    const nivel = nivelActual();
+    aiDelay = nivel.delay;
+    ai = new AI({ mistakeRate: nivel.mistakeRate });
+    rivalAI = new AI({ mistakeRate: nivel.mistakeRate });
+  }
+  aplicarNivel();
 
   /**
    * Da un paso de IA sobre un tablero, respetando la cadencia elegida.
@@ -133,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideResult();
 
     const gravity = parseInt(difficultySelect.value, 10);
-    ai.reset();
+    aplicarNivel();
     game = new Game(gravity);
     game.isAIPlaying = aiActive;
     game.start();
@@ -164,13 +177,14 @@ document.addEventListener('DOMContentLoaded', () => {
       startButton.disabled = false;
     };
 
-    ai.reset();
-    rivalAI.reset();
+    aplicarNivel(); // recoge el nivel elegido antes de empezar el duelo
 
     game = new Game(gravity, {
       pieceSource: createPieceReader(sequence),
       controls: true,
       onGameOver: () => finish('humano'),
+      // Despejar líneas envía basura al rival (tabla de ataque estándar).
+      onAttack: lineas => { if (rivalGame) rivalGame.receiveGarbage(lineas); },
     });
 
     rivalGame = new Game(gravity, {
@@ -178,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
       pieceSource: createPieceReader(sequence),
       controls: false,   // el tablero de la IA no debe robar el teclado
       onGameOver: () => finish('ia'),
+      onAttack: lineas => { if (game) game.receiveGarbage(lineas); },
     });
     rivalGame.isAIPlaying = true;
 
@@ -249,9 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
   versusButton.addEventListener('click', toggleVersus);
   optionsButton.addEventListener('click', toggleOptionsMenu);
   bgImageInput.addEventListener('change', changeBackground);
-  aiSpeedSelect.addEventListener('change', () => {
-    aiDelay = Number(aiSpeedSelect.value);
-  });
+  aiLevelSelect.addEventListener('change', aplicarNivel);
 
   updateGamepadStatus(false);
   gamepad.start();

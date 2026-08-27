@@ -5,12 +5,18 @@ import { addControlListeners, removeControlListeners } from './Controls.js';
 
 // Elementos que usa un tablero por defecto. En el modo versus el segundo
 // jugador recibe otros ids, para que ambas partidas sean independientes.
+// Tabla de ataque estándar del Tetris moderno: un simple no envía nada, un
+// doble una fila, un triple dos y un tetris cuatro. Es la que documentan la
+// Tetris Guideline y los modos versus clásicos.
+export const ATTACK_TABLE = [0, 0, 1, 2, 4];
+
 const DEFAULT_IDS = {
   board: 'board',
   score: 'score',
   level: 'level',
   nextPiece: 'nextPiece',
   startButton: 'startButton',
+  garbage: 'garbage',
 };
 
 export default class Game {
@@ -33,10 +39,18 @@ export default class Game {
     this.levelDisplay = byId(ids.level);
     this.nextPieceBoard = byId(ids.nextPiece);
     this.startButton = byId(ids.startButton);
+    this.garbageDisplay = byId(ids.garbage);
 
     this.pieceSource = options.pieceSource || getRandomPiece;
     this.onGameOver = options.onGameOver || null;
+    this.onAttack = options.onAttack || null;
     this.useControls = options.controls !== false;
+    this.random = options.random || Math.random;
+
+    // Basura pendiente de recibir. Se acumula en cola y sólo entra al tablero
+    // cuando se fija una pieza sin completar líneas: así da tiempo a
+    // contrarrestarla, como en los modos versus clásicos.
+    this.pendingGarbage = 0;
 
     this.boardWidth = 10;
     this.boardHeight = 20;
@@ -47,15 +61,14 @@ export default class Game {
 
     this.board = new Board(this.boardWidth, this.boardHeight, this.boardElement);
     this.currentPiece = null;
+    // Identificador incremental de la pieza en juego. La IA lo usa para saber
+    // cuándo ha aparecido una pieza nueva y replantear.
+    this.pieceId = 0;
     this.nextPiece = this.pieceSource();
 
     // Flags IA / Estado del juego
     this.isAIPlaying = false;
     this.isRunning = false;
-    // El borrado de líneas se anima durante 600 ms; mientras tanto la grilla
-    // todavía contiene las líneas completas y la IA no debe seguir jugando
-    // sobre un tablero desactualizado.
-    this.isClearing = false;
 
     this.keydownHandler = this.handleKeyDown.bind(this);
     if (this.useControls) {
@@ -85,6 +98,7 @@ export default class Game {
   }
 
   spawnPiece() {
+    this.pieceId++;
     this.currentPiece = this.nextPiece;
     this.currentPiece.x = Math.floor(this.boardWidth / 2) - Math.ceil(this.currentPiece.shape[0].length / 2);
     this.currentPiece.y = 0;
@@ -107,14 +121,14 @@ export default class Game {
         shape: this.currentPiece.shape.map(row => [...row]),
         position: { x: this.currentPiece.x, y: this.currentPiece.y }
       },
-      nextPiece: { type: this.nextPiece.type }
+      nextPiece: { type: this.nextPiece.type },
+      pieceId: this.pieceId
     };
   }
 
   // Ejecuta la acción indicada por la IA
   executeAction(action) {
     if (!this.isAIPlaying) return; // Evita que la IA actúe si no está activada
-    if (this.isClearing) return;   // Espera a que termine el borrado de líneas
 
     switch (action) {
       case 0: // No hacer nada (o mover hacia abajo)
@@ -169,10 +183,7 @@ export default class Game {
       this.currentPiece.x += dx;
       this.currentPiece.y += dy;
     } else if (dy > 0) {
-      // Bloquea la pieza
-      this.lockPiece();
-      this.checkLines();
-      this.spawnPiece();
+      this.lockAndAdvance();
     }
     this.draw();
   }
@@ -185,9 +196,7 @@ export default class Game {
     }
     // Bonus por hard drop
     this.score += cellsMoved * 2;
-    this.lockPiece();
-    this.checkLines();
-    this.spawnPiece();
+    this.lockAndAdvance();
     this.draw();
   }
 
@@ -234,18 +243,65 @@ export default class Game {
 
   checkLines() {
     const fullLines = this.board.getFullLines();
-    if (fullLines.length > 0) {
-      this.isClearing = true;
-      animateLineClear(this.boardElement, fullLines, () => {
-        this.board.clearLines(fullLines);
-        this.score += fullLines.length * 10;
-        this.updateSpeed();
-        this.updateScore();
-        this.isClearing = false;
-      });
-    } else {
+    if (fullLines.length === 0) {
       this.updateScore();
+      return 0;
     }
+
+    // El borrado es ATÓMICO: se aplica al modelo de inmediato y la animación
+    // queda como mera decoración. Diferirlo 600 ms dejaba el tablero
+    // desincronizado (la IA planificaba sobre líneas ya completadas) y, peor
+    // aún, la gravedad seguía corriendo durante la animación y fijaba piezas
+    // sin que nadie las controlase.
+    this.board.clearLines(fullLines);
+    this.score += fullLines.length * 10;
+    this.updateSpeed();
+    this.updateScore();
+    animateLineClear(this.boardElement, fullLines, () => {});
+
+    // Despejar líneas ataca al rival, pero antes cancela la basura que uno
+    // mismo tiene pendiente: defenderse tiene prioridad sobre atacar.
+    let ataque = ATTACK_TABLE[Math.min(fullLines.length, ATTACK_TABLE.length - 1)];
+    const cancelado = Math.min(ataque, this.pendingGarbage);
+    this.pendingGarbage -= cancelado;
+    ataque -= cancelado;
+
+    if (ataque > 0 && this.onAttack) this.onAttack(ataque);
+    this.updateGarbageDisplay();
+    return fullLines.length;
+  }
+
+  /** Encola basura enviada por el rival. */
+  receiveGarbage(lines) {
+    this.pendingGarbage += lines;
+    this.updateGarbageDisplay();
+  }
+
+  /** Vuelca la basura pendiente al tablero. */
+  applyPendingGarbage() {
+    if (this.pendingGarbage <= 0) return;
+
+    const hueco = Math.floor(this.random() * this.boardWidth);
+    const overflow = this.board.addGarbage(this.pendingGarbage, hueco);
+    this.pendingGarbage = 0;
+    this.updateGarbageDisplay();
+
+    if (overflow) this.gameOver();
+  }
+
+  updateGarbageDisplay() {
+    if (this.garbageDisplay) {
+      this.garbageDisplay.textContent = this.pendingGarbage > 0 ? `⬆ ${this.pendingGarbage}` : '';
+    }
+  }
+
+  /** Fija la pieza, resuelve líneas y basura, y saca la siguiente. */
+  lockAndAdvance() {
+    this.lockPiece();
+    const despejadas = this.checkLines();
+    // La basura entra sólo si no se han despejado líneas.
+    if (despejadas === 0) this.applyPendingGarbage();
+    if (this.isRunning) this.spawnPiece();
   }
 
   updateScore() {
@@ -303,7 +359,7 @@ export default class Game {
   resetGame() {
     this.score = 0;
     this.level = 1;
-    this.isClearing = false;
+    this.pendingGarbage = 0;
     this.board.clear();
     this.spawnPiece();
     this.start();

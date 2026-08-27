@@ -75,6 +75,14 @@ body {
 .player-score { font-weight: 600; color: #ffecb3; font-size: 0.95rem; }
 .player-level { opacity: 0.7; }
 
+/* Contador de basura entrante: sólo ocupa sitio cuando hay algo en cola. */
+.garbage {
+  color: #ff7b6b;
+  font-weight: 600;
+}
+
+.garbage:empty { display: none; }
+
 /* El tablero de la IA se distingue con un tinte propio. */
 #player2 .tetris-board { border-color: rgba(255, 180, 120, 0.9); }
 #player2 .player-score { color: #ffcc80; }

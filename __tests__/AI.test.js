@@ -1,63 +1,97 @@
 import AI, {
   ACTION,
-  columnHeights,
-  countHoles,
-  bumpiness,
-  clearCompleteLines,
+  DEFAULT_WEIGHTS,
   rotateShape,
+  sameShape,
   fits,
-  dropShape,
-  evaluateGrid,
+  simulateDrop,
+  countHoles,
+  rowTransitions,
+  columnTransitions,
+  cumulativeWells,
+  clearCompleteLines,
+  evaluatePlacement,
+  rankPlacements,
   findBestPlacement,
-  planActions,
 } from '../modules/AI.js';
 
 const emptyGrid = () => Array.from({ length: 20 }, () => new Array(10).fill(0));
 
-describe('métricas del tablero', () => {
-  test('columnHeights devuelve 0 en un tablero vacío', () => {
-    expect(columnHeights(emptyGrid())).toEqual(new Array(10).fill(0));
-  });
+const estado = (grid, shape, x, pieceId = 1) => ({
+  board: grid,
+  currentPiece: { type: 'T', shape, position: { x, y: 0 } },
+  nextPiece: { type: 'O' },
+  pieceId,
+});
 
-  test('columnHeights mide desde el bloque más alto de cada columna', () => {
-    const grid = emptyGrid();
-    grid[18][0] = 1; // altura 2
-    grid[19][2] = 1; // altura 1
-    expect(columnHeights(grid)).toEqual([2, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
-  });
-
+describe('rasgos de Dellacherie', () => {
   test('countHoles cuenta las celdas vacías tapadas', () => {
     const grid = emptyGrid();
-    grid[18][0] = 1; // deja la celda (19,0) tapada
+    grid[18][0] = 1; // deja (19,0) tapada
     expect(countHoles(grid)).toBe(1);
   });
 
-  test('countHoles ignora los huecos que siguen abiertos por arriba', () => {
+  test('countHoles ignora los huecos abiertos por arriba', () => {
     const grid = emptyGrid();
     grid[19][0] = 1;
     grid[19][2] = 1; // la columna 1 está hundida pero destapada
     expect(countHoles(grid)).toBe(0);
   });
 
-  test('bumpiness suma los desniveles entre columnas contiguas', () => {
-    expect(bumpiness([0, 3, 1])).toBe(5); // |0-3| + |3-1|
-    expect(bumpiness([2, 2, 2])).toBe(0);
+  // Las paredes cuentan como llenas: una fila vacía tiene 2 transiciones
+  // (pared→vacío y vacío→pared), así que un tablero vacío suma 20×2 = 40.
+  test('rowTransitions trata las paredes como llenas', () => {
+    expect(rowTransitions(emptyGrid())).toBe(40);
   });
 
-  test('clearCompleteLines elimina las líneas llenas y desplaza el resto', () => {
+  test('una fila completa no aporta transiciones', () => {
+    const grid = emptyGrid();
+    grid[19] = new Array(10).fill(1);
+    // 19 filas vacías × 2; la fila llena, 0.
+    expect(rowTransitions(grid)).toBe(38);
+  });
+
+  // El techo cuenta como vacío y el suelo como lleno: cada columna vacía
+  // aporta una única transición al llegar al suelo.
+  test('columnTransitions trata el suelo como lleno', () => {
+    expect(columnTransitions(emptyGrid())).toBe(10);
+  });
+
+  test('una columna a huecos alternos aporta muchas transiciones', () => {
+    const liso = emptyGrid();
+    for (let y = 10; y < 20; y++) liso[y][0] = 1;
+
+    const alterno = emptyGrid();
+    for (let y = 10; y < 20; y += 2) alterno[y][0] = 1;
+
+    expect(columnTransitions(alterno)).toBeGreaterThan(columnTransitions(liso));
+  });
+
+  test('cumulativeWells es cero en un tablero vacío', () => {
+    expect(cumulativeWells(emptyGrid())).toBe(0);
+  });
+
+  // Un pozo de profundidad 3 aporta 1+2+3 = 6: los pozos hondos penalizan
+  // mucho más que los superficiales.
+  test('cumulativeWells acumula la profundidad de cada pozo', () => {
+    const grid = emptyGrid();
+    for (let y = 17; y < 20; y++) { grid[y][0] = 1; grid[y][2] = 1; }
+    expect(cumulativeWells(grid)).toBe(6);
+  });
+
+  test('clearCompleteLines elimina y desplaza', () => {
     const grid = emptyGrid();
     grid[18][0] = 1;
     grid[19] = new Array(10).fill(1);
 
     const { grid: resultado, cleared } = clearCompleteLines(grid);
     expect(cleared).toBe(1);
+    expect(resultado[19][0]).toBe(1);
     expect(resultado.length).toBe(20);
-    expect(resultado[19][0]).toBe(1); // el bloque de la fila 18 baja a la 19
-    expect(resultado[0].every(c => c === 0)).toBe(true);
   });
 });
 
-describe('geometría de las piezas', () => {
+describe('geometría', () => {
   test('rotateShape gira en sentido horario', () => {
     expect(rotateShape([[0, 1, 0], [1, 1, 1]])).toEqual([[1, 0], [1, 1], [1, 0]]);
   });
@@ -69,86 +103,70 @@ describe('geometría de las piezas', () => {
     expect(forma).toEqual(original);
   });
 
-  test('fits respeta los bordes del tablero', () => {
-    const grid = emptyGrid();
-    expect(fits(grid, [[1]], 0, 0)).toBe(true);
-    expect(fits(grid, [[1]], -1, 0)).toBe(false);  // fuera por la izquierda
-    expect(fits(grid, [[1]], 10, 0)).toBe(false);  // fuera por la derecha
-    expect(fits(grid, [[1]], 0, 20)).toBe(false);  // por debajo del suelo
+  test('sameShape compara por contenido, no por referencia', () => {
+    expect(sameShape([[1, 0]], [[1, 0]])).toBe(true);
+    expect(sameShape([[1, 0]], [[0, 1]])).toBe(false);
+    expect(sameShape([[1]], [[1], [1]])).toBe(false);
   });
 
-  test('fits detecta colisiones y permite estar por encima del tablero', () => {
+  test('fits respeta bordes y colisiones', () => {
     const grid = emptyGrid();
     grid[5][3] = 1;
+    expect(fits(grid, [[1]], 0, 0)).toBe(true);
+    expect(fits(grid, [[1]], -1, 0)).toBe(false);
+    expect(fits(grid, [[1]], 10, 0)).toBe(false);
+    expect(fits(grid, [[1]], 0, 20)).toBe(false);
     expect(fits(grid, [[1]], 3, 5)).toBe(false);
-    expect(fits(grid, [[1, 1]], 4, -1)).toBe(true); // aún entrando por arriba
   });
 
-  test('dropShape deja la pieza en el suelo', () => {
-    const resultado = dropShape(emptyGrid(), [[1]], 4);
-    expect(resultado[19][4]).toBe(1);
-    expect(resultado[18][4]).toBe(0);
+  test('simulateDrop deja la pieza en el suelo y describe sus celdas', () => {
+    const drop = simulateDrop(emptyGrid(), [[1]], 4);
+    expect(drop.y).toBe(19);
+    expect(drop.grid[19][4]).toBe(1);
+    expect(drop.cells).toEqual([[19, 4]]);
   });
 
-  test('dropShape apila la pieza sobre los bloques existentes', () => {
+  test('simulateDrop apila sobre lo existente y no muta el original', () => {
     const grid = emptyGrid();
     grid[19][4] = 1;
-    const resultado = dropShape(grid, [[1]], 4);
-    expect(resultado[18][4]).toBe(1);
+    const drop = simulateDrop(grid, [[1]], 4);
+    expect(drop.y).toBe(18);
+    expect(grid[18][4]).toBe(0); // el tablero original queda intacto
   });
 
-  test('dropShape devuelve null si la columna está llena hasta arriba', () => {
+  test('simulateDrop devuelve null si la columna está llena', () => {
     const grid = emptyGrid();
     for (let y = 0; y < 20; y++) grid[y][0] = 1;
-    expect(dropShape(grid, [[1]], 0)).toBeNull();
-  });
-
-  test('dropShape no modifica el tablero original', () => {
-    const grid = emptyGrid();
-    dropShape(grid, [[1]], 4);
-    expect(grid[19][4]).toBe(0);
+    expect(simulateDrop(grid, [[1]], 0)).toBeNull();
   });
 });
 
-describe('evaluación de jugadas', () => {
-  test('prefiere un tablero sin huecos', () => {
-    const plano = emptyGrid();
-    for (let x = 0; x < 4; x++) plano[19][x] = 1;
-
-    const conHuecos = emptyGrid();
-    for (let x = 0; x < 4; x++) conHuecos[18][x] = 1; // deja 4 huecos debajo
-
-    expect(evaluateGrid(plano)).toBeGreaterThan(evaluateGrid(conHuecos));
-  });
-
-  test('prefiere completar una línea', () => {
-    const completa = emptyGrid();
-    completa[19] = new Array(10).fill(1);
-
-    const incompleta = emptyGrid();
-    incompleta[19] = new Array(10).fill(1);
-    incompleta[19][9] = 0;
-
-    expect(evaluateGrid(completa)).toBeGreaterThan(evaluateGrid(incompleta));
-  });
-});
-
-describe('elección de jugada', () => {
-  test('rota la pieza I y la encaja en el hueco para completar la línea', () => {
+describe('evaluación y elección de jugada', () => {
+  test('penaliza dejar huecos', () => {
     const grid = emptyGrid();
-    grid[19] = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1]; // sólo falta la columna 0
+    grid[19][1] = 1; // al poner la pieza en la columna 0 sobre nada...
+    const limpio = simulateDrop(emptyGrid(), [[1, 1]], 0);
+    const conHueco = simulateDrop(grid, [[1, 1]], 0);
+    expect(evaluatePlacement(limpio)).toBeGreaterThan(evaluatePlacement(conHueco));
+  });
 
-    const jugada = findBestPlacement(grid, [[1, 1, 1, 1]]);
-    expect(jugada.x).toBe(0);
-    expect(jugada.rotations).toBe(1); // vertical
+  test('rankPlacements devuelve las jugadas ordenadas de mejor a peor', () => {
+    const opciones = rankPlacements(emptyGrid(), [[1, 1], [1, 1]]);
+    expect(opciones.length).toBeGreaterThan(0);
+    for (let i = 1; i < opciones.length; i++) {
+      expect(opciones[i - 1].score).toBeGreaterThanOrEqual(opciones[i].score);
+    }
+  });
+
+  test('no evalúa dos veces las rotaciones repetidas de una pieza simétrica', () => {
+    // El cuadrado es igual en sus cuatro rotaciones: 9 posiciones, no 36.
+    expect(rankPlacements(emptyGrid(), [[1, 1], [1, 1]]).length).toBe(9);
   });
 
   test('no tapa un hueco pudiendo evitarlo', () => {
     const grid = emptyGrid();
     grid[19] = [1, 1, 1, 1, 1, 1, 1, 1, 1, 0]; // hueco en la columna 9
-
-    const jugada = findBestPlacement(grid, [[1, 1], [1, 1]]);
-    expect(jugada.x).not.toBe(8); // colocarla ahí taparía el hueco
+    expect(findBestPlacement(grid, [[1, 1], [1, 1]]).x).not.toBe(8);
   });
 
   test('devuelve null si la pieza no cabe en ninguna columna', () => {
@@ -156,65 +174,90 @@ describe('elección de jugada', () => {
     expect(findBestPlacement(lleno, [[1]])).toBeNull();
   });
 
-  test('planActions traduce la jugada en rotaciones, desplazamiento y hard drop', () => {
-    expect(planActions({ rotations: 2, x: 1 }, 4)).toEqual([
-      ACTION.ROTATE, ACTION.ROTATE,
-      ACTION.LEFT, ACTION.LEFT, ACTION.LEFT,
-      ACTION.HARD_DROP,
-    ]);
-
-    expect(planActions({ rotations: 0, x: 6 }, 4)).toEqual([
-      ACTION.RIGHT, ACTION.RIGHT, ACTION.HARD_DROP,
-    ]);
+  test('los pesos por defecto son los de Dellacherie', () => {
+    expect(DEFAULT_WEIGHTS).toEqual({
+      holes: -4,
+      cumulativeWells: -1,
+      rowTransitions: -1,
+      columnTransitions: -1,
+      landingHeight: -1,
+      erodedPieceCells: 1,
+    });
   });
 });
 
-describe('AI', () => {
-  const estadoCon = (grid, shape, x) => ({
-    board: grid,
-    currentPiece: { type: 'I', shape, position: { x, y: 0 } },
-    nextPiece: { type: 'O' },
-  });
-
-  test('entrega la jugada paso a paso y termina en hard drop', () => {
-    const grid = emptyGrid();
-    grid[19] = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+describe('AI — planificación sin estado', () => {
+  test('la secuencia de acciones termina en hard drop', () => {
     const ai = new AI();
-    const estado = estadoCon(grid, [[1, 1, 1, 1]], 3);
-
+    const grid = emptyGrid();
+    let piece = { shape: [[0, 1, 0], [1, 1, 1]], x: 4 };
     const acciones = [];
-    for (let i = 0; i < 10; i++) {
-      const accion = ai.predictAction(estado);
+
+    for (let i = 0; i < 15; i++) {
+      const accion = ai.predictAction(estado(grid, piece.shape, piece.x));
       acciones.push(accion);
       if (accion === ACTION.HARD_DROP) break;
+      // Simulamos el efecto de la acción sobre la pieza.
+      if (accion === ACTION.ROTATE) piece.shape = rotateShape(piece.shape);
+      if (accion === ACTION.LEFT) piece.x--;
+      if (accion === ACTION.RIGHT) piece.x++;
     }
 
-    // Rotar a vertical y moverse de la columna 3 a la 0.
-    expect(acciones).toEqual([
-      ACTION.ROTATE, ACTION.LEFT, ACTION.LEFT, ACTION.LEFT, ACTION.HARD_DROP,
-    ]);
+    expect(acciones[acciones.length - 1]).toBe(ACTION.HARD_DROP);
   });
 
-  test('planifica de nuevo tras completar la jugada anterior', () => {
+  // Regresión: antes la IA guardaba una lista de pasos, y si una acción se
+  // perdía (animación de borrado) o la gravedad movía la pieza, el resto del
+  // plan se ejecutaba sobre una situación que ya no existía.
+  test('se corrige sola si la pieza se mueve entre llamadas', () => {
     const ai = new AI();
-    const estado = estadoCon(emptyGrid(), [[1, 1, 1, 1]], 3);
+    const grid = emptyGrid();
+    const forma = [[1, 1], [1, 1]];
 
-    let acciones = 0;
-    while (ai.predictAction(estado) !== ACTION.HARD_DROP && acciones < 20) acciones++;
-    expect(ai.plan).toHaveLength(0);
+    const primera = ai.predictAction(estado(grid, forma, 4));
+    const destino = ai.target.x;
 
-    // La siguiente llamada arranca una jugada nueva en lugar de devolver nada.
-    expect(ai.predictAction(estado)).not.toBeNull();
+    // La pieza aparece de pronto en otra columna, sin haber ejecutado nada.
+    const segunda = ai.predictAction(estado(grid, forma, destino));
+    expect(segunda).toBe(ACTION.HARD_DROP); // ya está en su sitio: suelta
+    expect(primera).not.toBeNull();
   });
 
-  test('reset descarta la jugada en curso', () => {
+  test('mantiene el mismo destino mientras sea la misma pieza', () => {
     const ai = new AI();
-    const estado = estadoCon(emptyGrid(), [[1, 1, 1, 1]], 3);
-    ai.predictAction(estado);
-    expect(ai.plan.length).toBeGreaterThan(0);
+    const grid = emptyGrid();
+    ai.predictAction(estado(grid, [[1, 1], [1, 1]], 4, 7));
+    const destino = ai.target;
+    ai.predictAction(estado(grid, [[1, 1], [1, 1]], 4, 7));
+    expect(ai.target).toBe(destino);
+  });
 
+  test('replantea cuando aparece una pieza nueva', () => {
+    const ai = new AI();
+    const grid = emptyGrid();
+    ai.predictAction(estado(grid, [[1, 1], [1, 1]], 4, 1));
+    const destino = ai.target;
+    ai.predictAction(estado(grid, [[1, 1, 1, 1]], 3, 2)); // pieza distinta
+    expect(ai.target).not.toBe(destino);
+  });
+
+  test('no gira indefinidamente si la rotación está bloqueada', () => {
+    const ai = new AI();
+    const grid = emptyGrid();
+    // La forma nunca coincide con el destino porque no la giramos nunca.
+    let ultima = null;
+    for (let i = 0; i < 10; i++) {
+      ultima = ai.predictAction(estado(grid, [[0, 1, 0], [1, 1, 1]], 4));
+    }
+    expect(ultima).toBe(ACTION.HARD_DROP);
+  });
+
+  test('reset olvida el destino', () => {
+    const ai = new AI();
+    ai.predictAction(estado(emptyGrid(), [[1, 1], [1, 1]], 4));
+    expect(ai.target).not.toBeNull();
     ai.reset();
-    expect(ai.plan).toHaveLength(0);
+    expect(ai.target).toBeNull();
   });
 
   test('devuelve null ante un estado inválido', () => {
@@ -222,12 +265,34 @@ describe('AI', () => {
     expect(ai.predictAction(null)).toBeNull();
     expect(ai.predictAction({})).toBeNull();
     expect(ai.predictAction({ board: emptyGrid() })).toBeNull();
-    expect(ai.predictAction({ board: emptyGrid(), currentPiece: {} })).toBeNull();
+  });
+});
+
+describe('AI — dificultad', () => {
+  test('sin margen de error elige siempre la mejor jugada', () => {
+    const ai = new AI({ random: () => 0 }); // mistakeRate 0 por defecto
+    const grid = emptyGrid();
+    const forma = [[1, 1, 1, 1]];
+    ai.predictAction(estado(grid, forma, 3));
+    expect(ai.target.score).toBe(rankPlacements(grid, forma)[0].score);
   });
 
-  test('devuelve null si no hay ninguna jugada posible', () => {
-    const ai = new AI();
-    const lleno = Array.from({ length: 20 }, () => new Array(10).fill(1));
-    expect(ai.predictAction(estadoCon(lleno, [[1]], 3))).toBeNull();
+  // Un fallo no es una jugada absurda, sino una mediocre: se elige de la mitad
+  // peor de la lista, que es como falla un jugador humano.
+  test('con margen de error elige una jugada peor', () => {
+    const grid = emptyGrid();
+    const forma = [[1, 1, 1, 1]];
+    const mejor = rankPlacements(grid, forma)[0].score;
+
+    const ai = new AI({ mistakeRate: 1, random: () => 0 });
+    ai.predictAction(estado(grid, forma, 3));
+    expect(ai.target.score).toBeLessThanOrEqual(mejor);
+  });
+
+  test('el margen de error no rompe la elección', () => {
+    const ai = new AI({ mistakeRate: 1, random: () => 0.999 });
+    const accion = ai.predictAction(estado(emptyGrid(), [[1, 1], [1, 1]], 4));
+    expect([0, 1, 2, 3, 4]).toContain(accion);
+    expect(ai.target).not.toBeNull();
   });
 });

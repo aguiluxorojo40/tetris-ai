@@ -135,3 +135,37 @@ describe('Board.clear', () => {
     expect(board.grid.every(row => row.length === 10 && row.every(c => c === 0))).toBe(true);
   });
 });
+
+describe('Board.addGarbage', () => {
+  let board;
+
+  beforeEach(() => {
+    board = new Board(10, 20, document.createElement('div'));
+  });
+
+  test('inserta las filas por abajo con un único hueco', () => {
+    board.addGarbage(2, 3);
+
+    expect(board.grid[19].filter(c => c).length).toBe(9);
+    expect(board.grid[19][3]).toBe(0);
+    expect(board.grid[18][3]).toBe(0); // "basura limpia": mismo hueco
+  });
+
+  test('empuja hacia arriba lo que ya había', () => {
+    board.grid[19][0] = 1;
+    board.addGarbage(1, 5);
+    expect(board.grid[18][0]).toBe(1); // la marca sube una fila
+  });
+
+  test('avisa cuando la pila se sale por arriba', () => {
+    expect(board.addGarbage(1, 5)).toBe(false);
+    board.grid[0][0] = 1;
+    expect(board.addGarbage(1, 5)).toBe(true);
+  });
+
+  test('mantiene las dimensiones del tablero', () => {
+    board.addGarbage(4, 2);
+    expect(board.grid.length).toBe(20);
+    expect(board.grid.every(row => row.length === 10)).toBe(true);
+  });
+});

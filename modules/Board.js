@@ -56,6 +56,26 @@ export default class Board {
     this.grid = Array.from({ length: this.height }, () => new Array(this.width).fill(0));
   }
 
+  /**
+   * Inserta filas de basura por abajo, empujando la pila hacia arriba.
+   * Todas comparten la misma columna de hueco ("basura limpia", como en
+   * Tetris 99), de modo que una pieza I vertical puede despejarlas de golpe.
+   * @returns {boolean} true si la pila se ha salido por arriba.
+   */
+  addGarbage(count, holeColumn) {
+    let overflow = false;
+
+    for (let i = 0; i < count; i++) {
+      const expulsada = this.grid.shift();
+      if (expulsada.some(cell => cell)) overflow = true;
+
+      const fila = new Array(this.width).fill(1);
+      fila[holeColumn] = 0;
+      this.grid.push(fila);
+    }
+    return overflow;
+  }
+
   getFullLines() {
     const fullLines = [];
     this.grid.forEach((row, index) => {
