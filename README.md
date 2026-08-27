@@ -37,6 +37,15 @@ es determinista, se puede testear y juega bien desde el primer momento.
 
 ## Controles
 
+### Táctil (móvil)
+Botones en pantalla situados bajo el tablero, al alcance del pulgar. Mantener
+pulsado ← → o ↓ repite el movimiento; rotar y hard drop se disparan una sola
+vez por pulsación.
+
+La interfaz se adapta a la orientación: en vertical el tablero queda arriba y
+los controles abajo; en horizontal, el tablero a la izquierda y todo lo demás
+a la derecha. El tablero se escala para caber entero, sin scroll.
+
 ### Teclado
 | Tecla | Acción |
 |-------|--------|

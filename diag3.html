@@ -82,5 +82,15 @@
   </div>
 
   <script type="module" src="main.js"></script>
-</body>
+<pre id="diagOut" style="position:fixed;bottom:0;left:0;z-index:99;font-size:9px;background:#fff;color:#000"></pre>
+<script>
+addEventListener('load', () => {
+  const rc = s => { const e = document.querySelector(s); if(!e) return s+'=NO'; const b = e.getBoundingClientRect();
+    return `${s} x=${b.x.toFixed(0)} w=${b.width.toFixed(0)}`; };
+  document.getElementById('diagOut').textContent = [
+    `innerW=${innerWidth} innerH=${innerHeight} scrollW=${document.documentElement.scrollWidth}`,
+    rc('.game-container'), rc('.play-area'), rc('#board'), rc('.controls'), rc('.actions')
+  ].join('\n');
+});
+</script></body>
 </html>
