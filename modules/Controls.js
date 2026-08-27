@@ -53,6 +53,11 @@ export function addControlListeners(game) {
 
       if (!repeticion) return;
       const timeout = setTimeout(() => {
+        // Al expirar el retardo se repite ya, y a partir de ahí al ritmo del
+        // intervalo. Sin esta primera llamada la repetición arrancaría con un
+        // hueco extra, y el mando (que sí dispara al expirar) se comportaría
+        // distinto que los botones táctiles.
+        accion();
         const interval = setInterval(accion, repeticion.interval);
         const actual = activeTimers.get(id);
         if (actual) actual.interval = interval;
