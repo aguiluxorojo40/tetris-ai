@@ -18,7 +18,7 @@ no `Math.random`), de modo que el duelo es comparable.
 
 ### Basura
 
-Sigue la tabla de ataque estándar del Tetris moderno:
+Sigue la tabla de ataque estándar del Guideline:
 
 | Despejas | Envías |
 |---|---|
@@ -26,13 +26,31 @@ Sigue la tabla de ataque estándar del Tetris moderno:
 | Doble | 1 fila |
 | Triple | 2 filas |
 | Tetris | 4 filas |
+| Back-to-back (Tetris encadenado) | +2 |
+| Perfect clear (tablero vacío) | +10 |
+
+Y el bonus por combo, columna *Guideline Standard*. El contador arranca en −1:
+la primera pieza que despeja lo deja en 0, que aún no bonifica.
+
+| Combo | 0-1 | 2-3 | 4-5 | 6-7 | 8-10 | 11+ |
+|---|---|---|---|---|---|---|
+| Filas extra | 0 | 1 | 2 | 3 | 4 | 5 |
+
+Fijar una pieza sin despejar rompe el combo. Un despeje que no sea Tetris rompe
+la cadena de back-to-back.
 
 La basura entrante queda **en cola** (contador ⬆) y sólo entra al tablero al
 fijar una pieza *sin* despejar líneas. Eso da margen para contrarrestarla:
 despejar líneas cancela primero la basura propia pendiente y sólo el sobrante
-ataca al rival. Todas las filas de un mismo envío comparten la columna del
-hueco ("basura limpia"), así que una I vertical las despeja de golpe. Pierde
-quien desborde.
+ataca al rival. Pierde quien desborde.
+
+Las filas de un envío repiten la columna del hueco el **72 %** de las veces
+(el valor de Tetris DS). Con alineación total la basura degenera en un vaivén:
+quien la recibe la despeja con una I y te la devuelve entera.
+
+*No implementados*: T-spins (requieren detección de giro y un SRS completo, y
+este juego usa rotación simple con wall kicks básicos) y el sistema de objetos
+del modo versus de TGM.
 
 ### Nivel de la IA
 
@@ -46,6 +64,12 @@ jugada mediocre (de la mitad peor de la lista, que es como falla un humano).
 | Normal | 250 ms | 15 % | ~3 por cada 150 piezas |
 | Difícil | 120 ms | 5 % | ~1 por cada 150 piezas |
 | Imposible | 40 ms | 0 % | 0 en 500 piezas |
+
+## Piezas
+
+El reparto usa el **Random Generator** de la Guideline, la "bolsa de 7": cada
+tanda baraja una vez cada pieza y las reparte. Con azar uniforme puedes pasarte
+veinte piezas sin ver una I; con la bolsa, la espera nunca pasa de 12.
 
 ## La IA
 

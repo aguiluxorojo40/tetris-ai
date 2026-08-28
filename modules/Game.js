@@ -10,6 +10,24 @@ import { addControlListeners, removeControlListeners } from './Controls.js';
 // Tetris Guideline y los modos versus clásicos.
 export const ATTACK_TABLE = [0, 0, 1, 2, 4];
 
+// Filas extra por combo, columna "Guideline Standard" de la tabla de TetrisWiki.
+// El índice es el contador de combo, que empieza en -1: la primera línea lo deja
+// en 0, la segunda consecutiva en 1, y así. De 13 en adelante se queda en 5.
+export const COMBO_TABLE = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5];
+
+// Bonus por encadenar Tetris (back-to-back). La tabla da +2 para Tetris y TSD;
+// aquí sólo aplica al Tetris, porque el juego no detecta T-spins.
+export const BACK_TO_BACK_BONUS = 2;
+
+// Vaciar el tablero por completo. La tabla lo cifra en 10 filas.
+export const PERFECT_CLEAR_GARBAGE = 10;
+
+// Probabilidad de que una fila de basura repita el hueco de la anterior.
+// Con alineación total la basura "rebota" de un lado a otro sin control (la
+// wiki lo describe como see-saw): quien la recibe la despeja con una I y te la
+// devuelve entera. Tetris DS usa ~72%, y es el valor que adoptamos.
+export const GARBAGE_ALIGNMENT = 0.72;
+
 const DEFAULT_IDS = {
   board: 'board',
   score: 'score',
@@ -51,6 +69,12 @@ export default class Game {
     // cuando se fija una pieza sin completar líneas: así da tiempo a
     // contrarrestarla, como en los modos versus clásicos.
     this.pendingGarbage = 0;
+
+    // Contador de combo. Arranca en -1: la primera pieza que despeja lo deja
+    // en 0, que todavía no da bonus.
+    this.combo = -1;
+    // Para el back-to-back: si la última jugada que despejó fue un Tetris.
+    this.lastClearWasTetris = false;
 
     this.boardWidth = 10;
     this.boardHeight = 20;
@@ -259,9 +283,24 @@ export default class Game {
     this.updateScore();
     animateLineClear(this.boardElement, fullLines, () => {});
 
-    // Despejar líneas ataca al rival, pero antes cancela la basura que uno
-    // mismo tiene pendiente: defenderse tiene prioridad sobre atacar.
     let ataque = ATTACK_TABLE[Math.min(fullLines.length, ATTACK_TABLE.length - 1)];
+
+    // Back-to-back: dos Tetris seguidos, sin ninguna otra jugada en medio.
+    const esTetris = fullLines.length === 4;
+    if (esTetris && this.lastClearWasTetris) ataque += BACK_TO_BACK_BONUS;
+    this.lastClearWasTetris = esTetris;
+
+    // Combo: cada pieza consecutiva que despeja suma al contador.
+    this.combo++;
+    if (this.combo > 0) {
+      ataque += COMBO_TABLE[Math.min(this.combo, COMBO_TABLE.length - 1)];
+    }
+
+    // Perfect clear: dejar el tablero completamente vacío.
+    if (this.board.isEmpty()) ataque += PERFECT_CLEAR_GARBAGE;
+
+    // Antes de atacar se cancela la basura propia pendiente: defenderse tiene
+    // prioridad sobre atacar, y sólo el sobrante llega al rival.
     const cancelado = Math.min(ataque, this.pendingGarbage);
     this.pendingGarbage -= cancelado;
     ataque -= cancelado;
@@ -281,12 +320,32 @@ export default class Game {
   applyPendingGarbage() {
     if (this.pendingGarbage <= 0) return;
 
-    const hueco = Math.floor(this.random() * this.boardWidth);
-    const overflow = this.board.addGarbage(this.pendingGarbage, hueco);
+    const overflow = this.board.addGarbage(
+      this.pendingGarbage,
+      this.buildGarbageHoles(this.pendingGarbage)
+    );
     this.pendingGarbage = 0;
     this.updateGarbageDisplay();
 
     if (overflow) this.gameOver();
+  }
+
+  /**
+   * Decide la columna del hueco de cada fila de basura. Las filas tienden a
+   * repetir hueco (para que una I las despeje de golpe), pero no siempre: con
+   * alineación total el intercambio degenera en un vaivén sin control.
+   */
+  buildGarbageHoles(count) {
+    const huecos = [];
+    let actual = Math.floor(this.random() * this.boardWidth);
+
+    for (let i = 0; i < count; i++) {
+      if (i > 0 && this.random() >= GARBAGE_ALIGNMENT) {
+        actual = Math.floor(this.random() * this.boardWidth);
+      }
+      huecos.push(actual);
+    }
+    return huecos;
   }
 
   updateGarbageDisplay() {
@@ -299,8 +358,11 @@ export default class Game {
   lockAndAdvance() {
     this.lockPiece();
     const despejadas = this.checkLines();
-    // La basura entra sólo si no se han despejado líneas.
-    if (despejadas === 0) this.applyPendingGarbage();
+    if (despejadas === 0) {
+      this.combo = -1; // combo roto: la pieza no despejó nada
+      // La basura entra sólo si no se han despejado líneas.
+      this.applyPendingGarbage();
+    }
     if (this.isRunning) this.spawnPiece();
   }
 
@@ -360,6 +422,8 @@ export default class Game {
     this.score = 0;
     this.level = 1;
     this.pendingGarbage = 0;
+    this.combo = -1;
+    this.lastClearWasTetris = false;
     this.board.clear();
     this.spawnPiece();
     this.start();

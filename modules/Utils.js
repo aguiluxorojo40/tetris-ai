@@ -29,8 +29,26 @@ function buildPiece(index) {
   return new Piece(shape.map(row => [...row]), color, type);
 }
 
+/**
+ * Baraja una "bolsa" con las 7 piezas (Fisher-Yates). Es el Random Generator
+ * que exige la Tetris Guideline: cada tanda reparte una vez cada pieza, de modo
+ * que nunca hay sequías largas. Con azar uniforme puedes pasarte veinte piezas
+ * sin ver una I, y en un duelo eso decide la partida.
+ */
+export function shuffledBag(random) {
+  const bag = pieces.map((_, index) => index);
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag;
+}
+
+let defaultBag = [];
+
 export function getRandomPiece() {
-  return buildPiece(Math.floor(Math.random() * pieces.length));
+  if (defaultBag.length === 0) defaultBag = shuffledBag(Math.random);
+  return buildPiece(defaultBag.shift());
 }
 
 /**
@@ -56,10 +74,12 @@ export function createRandom(seed) {
 export function createPieceSequence(seed) {
   const random = createRandom(seed);
   const indices = [];
+  let bag = [];
 
   return function pieceAt(position) {
     while (indices.length <= position) {
-      indices.push(Math.floor(random() * pieces.length));
+      if (bag.length === 0) bag = shuffledBag(random);
+      indices.push(bag.shift());
     }
     return buildPiece(indices[position]);
   };

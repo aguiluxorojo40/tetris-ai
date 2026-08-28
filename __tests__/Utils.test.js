@@ -4,6 +4,7 @@ import {
   createRandom,
   createPieceSequence,
   createPieceReader,
+  shuffledBag,
 } from '../modules/Utils.js';
 import { Piece } from '../modules/Piece.js';
 
@@ -142,5 +143,49 @@ describe('secuencia compartida de piezas', () => {
       expect(valor).toBeGreaterThanOrEqual(0);
       expect(valor).toBeLessThan(1);
     }
+  });
+});
+
+describe('bolsa de 7 piezas (Random Generator del Guideline)', () => {
+  const TIPOS = ['I', 'O', 'T', 'S', 'Z', 'L', 'J'];
+
+  test('shuffledBag devuelve los 7 índices sin repetir', () => {
+    const bag = shuffledBag(Math.random);
+    expect(bag).toHaveLength(7);
+    expect(new Set(bag).size).toBe(7);
+  });
+
+  // Lo que evita la bolsa: con azar uniforme puedes pasarte veinte piezas sin
+  // ver una I, y en un duelo eso decide la partida.
+  test('cada tanda de 7 reparte todas las piezas una vez', () => {
+    const sequence = createPieceSequence(7);
+    for (let tanda = 0; tanda < 5; tanda++) {
+      const tipos = Array.from({ length: 7 }, (_, i) => sequence(tanda * 7 + i).type);
+      expect(new Set(tipos).size).toBe(7);
+      expect(new Set(tipos)).toEqual(new Set(TIPOS));
+    }
+  });
+
+  test('la espera entre dos piezas iguales nunca pasa de 12', () => {
+    const sequence = createPieceSequence(123);
+    const tipos = Array.from({ length: 350 }, (_, i) => sequence(i).type);
+
+    let maxEspera = 0;
+    for (const tipo of TIPOS) {
+      let anterior = -1;
+      tipos.forEach((t, i) => {
+        if (t !== tipo) return;
+        if (anterior >= 0) maxEspera = Math.max(maxEspera, i - anterior);
+        anterior = i;
+      });
+    }
+    // Peor caso teórico de la bolsa: última de una tanda y primera de la
+    // siguiente-siguiente, es decir 12 piezas de separación.
+    expect(maxEspera).toBeLessThanOrEqual(12);
+  });
+
+  test('getRandomPiece también reparte por tandas', () => {
+    const tipos = Array.from({ length: 7 }, () => getRandomPiece().type);
+    expect(new Set(tipos).size).toBe(7);
   });
 });

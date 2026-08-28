@@ -62,7 +62,11 @@ export default class Board {
    * Tetris 99), de modo que una pieza I vertical puede despejarlas de golpe.
    * @returns {boolean} true si la pila se ha salido por arriba.
    */
-  addGarbage(count, holeColumn) {
+  addGarbage(count, holeColumns) {
+    // Admite una columna suelta o una lista con la de cada fila.
+    const huecos = Array.isArray(holeColumns)
+      ? holeColumns
+      : new Array(count).fill(holeColumns);
     let overflow = false;
 
     for (let i = 0; i < count; i++) {
@@ -70,10 +74,15 @@ export default class Board {
       if (expulsada.some(cell => cell)) overflow = true;
 
       const fila = new Array(this.width).fill(1);
-      fila[holeColumn] = 0;
+      fila[huecos[i]] = 0;
       this.grid.push(fila);
     }
     return overflow;
+  }
+
+  /** ¿Está el tablero completamente vacío? (perfect clear) */
+  isEmpty() {
+    return this.grid.every(row => row.every(cell => !cell));
   }
 
   getFullLines() {

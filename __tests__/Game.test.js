@@ -1,4 +1,9 @@
-import Game, { ATTACK_TABLE } from '../modules/Game.js';
+import Game, {
+  ATTACK_TABLE,
+  COMBO_TABLE,
+  BACK_TO_BACK_BONUS,
+  PERFECT_CLEAR_GARBAGE,
+} from '../modules/Game.js';
 
 // -----------------------------------------------------------------------------
 // Utilidades de test
@@ -416,5 +421,100 @@ describe('Game — basura del modo versus', () => {
     game.applyPendingGarbage();
 
     expect(perdida).toHaveBeenCalled();
+  });
+});
+
+describe('Game — combos, back-to-back y perfect clear', () => {
+  let game;
+  let enviado;
+
+  // Un bloque suelto arriba impide que las jugadas cuenten como perfect clear,
+  // que si no se sumaría a todo y falsearía las cifras.
+  beforeEach(() => {
+    setupDOM();
+    game = new Game(1000, { controls: false });
+    game.board.grid = emptyGrid();
+    game.board.grid[3][0] = 1;
+    enviado = [];
+    game.onAttack = n => enviado.push(n);
+  });
+
+  afterEach(() => game.stop());
+
+  const completar = filas => {
+    for (let i = 0; i < filas; i++) game.board.grid[19 - i] = new Array(10).fill(1);
+    game.checkLines();
+  };
+
+  test('la tabla de combo es la del Guideline Standard', () => {
+    expect(COMBO_TABLE).toEqual([0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5]);
+  });
+
+  // El contador arranca en -1: la primera pieza que despeja lo deja en 0, que
+  // todavía no da bonus; el bonus empieza a partir del combo 2.
+  test('el combo suma filas extra a partir del tercer despeje seguido', () => {
+    completar(2); // combo 0 -> doble = 1
+    completar(2); // combo 1 -> +0
+    completar(2); // combo 2 -> +1
+    completar(2); // combo 3 -> +1
+    completar(2); // combo 4 -> +2
+
+    expect(enviado).toEqual([1, 1, 2, 2, 3]);
+  });
+
+  test('fijar una pieza sin despejar rompe el combo', () => {
+    completar(2);
+    completar(2);
+    expect(game.combo).toBe(1);
+
+    game.currentPiece = makePiece([[1]], 0, 0);
+    game.isAIPlaying = true;
+    game.executeAction(4); // hard drop sin completar línea
+
+    expect(game.combo).toBe(-1);
+  });
+
+  test('dos Tetris encadenados cobran el bonus back-to-back', () => {
+    completar(4); // 4
+    completar(4); // 4 + B2B, y el combo 1 no suma
+
+    expect(enviado[0]).toBe(4);
+    expect(enviado[1]).toBe(4 + BACK_TO_BACK_BONUS);
+  });
+
+  test('una jugada que no es Tetris rompe la cadena back-to-back', () => {
+    completar(4);
+    completar(2); // rompe la cadena
+    expect(game.lastClearWasTetris).toBe(false);
+
+    completar(4); // Tetris sin bonus: 4 + 1 del combo 3
+    expect(enviado[2]).toBe(4 + 1);
+  });
+
+  test('vaciar el tablero cuenta como perfect clear', () => {
+    game.board.grid = emptyGrid();          // sin el bloque marcador
+    game.board.grid[19] = new Array(10).fill(1);
+
+    game.checkLines();
+
+    expect(game.board.isEmpty()).toBe(true);
+    expect(enviado[0]).toBe(PERFECT_CLEAR_GARBAGE);
+  });
+
+  test('las filas de basura repiten hueco la mayoría de las veces', () => {
+    let iguales = 0;
+    for (let i = 0; i < 500; i++) {
+      const huecos = game.buildGarbageHoles(2);
+      if (huecos[0] === huecos[1]) iguales++;
+    }
+    // Alineación objetivo del 72%; se deja margen por ser aleatorio.
+    expect(iguales / 500).toBeGreaterThan(0.6);
+    expect(iguales / 500).toBeLessThan(0.85);
+  });
+
+  test('buildGarbageHoles devuelve una columna por fila, dentro del tablero', () => {
+    const huecos = game.buildGarbageHoles(5);
+    expect(huecos).toHaveLength(5);
+    expect(huecos.every(c => c >= 0 && c < 10)).toBe(true);
   });
 });
