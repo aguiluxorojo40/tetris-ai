@@ -327,6 +327,10 @@ describe('Game — basura del modo versus', () => {
     setupDOM();
     game = new Game(1000, { controls: false });
     game.board.grid = emptyGrid();
+    // Bloque suelto arriba: sin él, despejar la única fila con contenido
+    // dejaría el tablero vacío y toda jugada cobraría perfect clear (+10),
+    // falseando las cifras de ataque y cancelación que se miden aquí.
+    game.board.grid[3][0] = 1;
   });
 
   afterEach(() => game.stop());

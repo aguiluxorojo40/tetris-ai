@@ -166,26 +166,34 @@ describe('bolsa de 7 piezas (Random Generator del Guideline)', () => {
     }
   });
 
-  test('la espera entre dos piezas iguales nunca pasa de 12', () => {
-    const sequence = createPieceSequence(123);
-    const tipos = Array.from({ length: 350 }, (_, i) => sequence(i).type);
-
-    let maxEspera = 0;
+  // Distancia máxima entre dos apariciones del mismo tipo. El peor caso de la
+  // bolsa es salir la primera de una tanda y la última de la siguiente: 13
+  // posiciones. Con azar uniforme la distancia no tiene tope.
+  const distanciaMaxima = tipos => {
+    let maxima = 0;
     for (const tipo of TIPOS) {
       let anterior = -1;
       tipos.forEach((t, i) => {
         if (t !== tipo) return;
-        if (anterior >= 0) maxEspera = Math.max(maxEspera, i - anterior);
+        if (anterior >= 0) maxima = Math.max(maxima, i - anterior);
         anterior = i;
       });
     }
-    // Peor caso teórico de la bolsa: última de una tanda y primera de la
-    // siguiente-siguiente, es decir 12 piezas de separación.
-    expect(maxEspera).toBeLessThanOrEqual(12);
+    return maxima;
+  };
+
+  test('la distancia entre dos piezas iguales nunca pasa de 13', () => {
+    const sequence = createPieceSequence(123);
+    const tipos = Array.from({ length: 350 }, (_, i) => sequence(i).type);
+    expect(distanciaMaxima(tipos)).toBeLessThanOrEqual(13);
   });
 
-  test('getRandomPiece también reparte por tandas', () => {
-    const tipos = Array.from({ length: 7 }, () => getRandomPiece().type);
+  // getRandomPiece comparte la bolsa entre llamadas, así que una tanda de 7
+  // tiradas no tiene por qué empezar en el borde de una bolsa. Lo que sí se
+  // cumple siempre es el tope de distancia.
+  test('getRandomPiece tampoco produce sequías largas', () => {
+    const tipos = Array.from({ length: 210 }, () => getRandomPiece().type);
     expect(new Set(tipos).size).toBe(7);
+    expect(distanciaMaxima(tipos)).toBeLessThanOrEqual(13);
   });
 });
