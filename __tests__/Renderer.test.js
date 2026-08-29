@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { join } from 'path';
 import Board from '../modules/Board.js';
 import DomRenderer, {
   EMPTY_COLOR,
@@ -119,8 +120,10 @@ describe('DomRenderer', () => {
 describe('assets/cubo.json — el modelo de Meshy reducido', () => {
   // El fichero se carga con fetch en el navegador; aquí se lee del disco para
   // comprobar que es coherente antes de que llegue a producción.
+  // Se resuelve desde la raíz del proyecto y no con import.meta.url, porque
+  // Babel transpila los tests a CommonJS y allí import.meta no existe.
   const modelo = JSON.parse(
-    readFileSync(new URL('../assets/cubo.json', import.meta.url), 'utf8')
+    readFileSync(join(process.cwd(), 'assets', 'cubo.json'), 'utf8')
   );
 
   test('trae posiciones, normales e índices', () => {
