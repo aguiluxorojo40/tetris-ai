@@ -428,18 +428,6 @@ export default class Game {
     this.spawnPiece();
     this.start();
   }
-  drawPiece(piece) {
-    const { shape, x, y } = piece;
-    shape.forEach((row, rowIndex) => {
-      row.forEach((value, colIndex) => {
-        if (value) {
-          const cell = this.boardElement.children[(y + rowIndex) * this.boardWidth + (x + colIndex)];
-          if (cell) cell.style.backgroundColor = 'red'; // Cambia según el color
-        }
-      });
-    });
-  }
-
   drawNextPiece() {
     if (!this.nextPieceBoard) return;
     // Clear the next piece board
@@ -452,7 +440,7 @@ export default class Game {
       row.forEach((value, colIndex) => {
         if (value) {
           const cell = document.createElement('div');
-          cell.style.backgroundColor = 'red'; // Change according to the color
+          cell.style.backgroundColor = this.nextPiece.color;
           cell.style.gridRowStart = rowIndex + 1;
           cell.style.gridColumnStart = colIndex + 1;
           this.nextPieceBoard.appendChild(cell);

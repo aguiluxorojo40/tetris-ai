@@ -524,3 +524,21 @@ describe('Game — combos, back-to-back y perfect clear', () => {
     expect(huecos.every(c => c >= 0 && c < 10)).toBe(true);
   });
 });
+
+describe('Game — vista previa de la siguiente pieza', () => {
+  beforeEach(setupDOM);
+
+  // Regresión: drawNextPiece pintaba la vista previa de rojo fijo, el mismo
+  // fallo que Board.draw tenía con las piezas ya fijadas.
+  test('la vista previa usa el color de la pieza', () => {
+    const game = new Game(1000, { controls: false });
+    game.nextPiece = { shape: [[1, 1]], color: '#00e5e5', type: 'I', x: 0, y: 0 };
+
+    game.drawNextPiece();
+
+    const celdas = document.getElementById('nextPiece').children;
+    expect(celdas.length).toBe(2);
+    expect(celdas[0].style.backgroundColor).toBe('rgb(0, 229, 229)');
+    game.stop();
+  });
+});

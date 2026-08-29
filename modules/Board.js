@@ -132,7 +132,8 @@ export default class Board {
 
   drawPiece(piece) {
     const cells = this.element.children;
-    const { x, y, shape, color = 'red' } = piece; // Establece un color predeterminado
+    // Color de reserva neutro: el rojo se confundiría con una pieza Z.
+    const { x, y, shape, color = GARBAGE_COLOR } = piece;
     for (let sy = 0; sy < shape.length; sy++) {
       for (let sx = 0; sx < shape[sy].length; sx++) {
         if (shape[sy][sx] !== 0) {
