@@ -1,25 +1,32 @@
 import { Piece } from './Piece.js';
 
+// Colores según la Tetris Guideline: cada forma tiene el suyo.
+// I azul claro, J azul oscuro, L naranja, O amarillo, S verde, Z rojo,
+// T magenta.
+//
+// Las etiquetas de L y J estaban intercambiadas: lo que se llamaba 'L' tenía
+// la forma de una J y al revés. Los colores sí acompañaban a su forma, así que
+// sólo hubo que corregir los nombres.
 const pieces = [
-  { type: 'I', shape: [[1, 1, 1, 1]], color: 'cyan' },
+  { type: 'I', shape: [[1, 1, 1, 1]], color: '#00e5e5' },
 
   { type: 'O', shape: [[1, 1],
-                       [1, 1]], color: 'yellow' },
+                       [1, 1]], color: '#e5e500' },
 
   { type: 'T', shape: [[0, 1, 0],
-                       [1, 1, 1]], color: 'purple' },
+                       [1, 1, 1]], color: '#a000e5' },
 
   { type: 'S', shape: [[0, 1, 1],
-                       [1, 1, 0]], color: 'green' },
+                       [1, 1, 0]], color: '#00d000' },
 
   { type: 'Z', shape: [[1, 1, 0],
-                       [0, 1, 1]], color: 'red' },
+                       [0, 1, 1]], color: '#e52020' },
 
-  { type: 'L', shape: [[1, 0, 0],
-                       [1, 1, 1]], color: 'blue' },
+  { type: 'J', shape: [[1, 0, 0],
+                       [1, 1, 1]], color: '#2040e5' },
 
-  { type: 'J', shape: [[0, 0, 1],
-                       [1, 1, 1]], color: 'orange' },
+  { type: 'L', shape: [[0, 0, 1],
+                       [1, 1, 1]], color: '#e59000' },
 ];
 
 // Clonamos la forma para que cada pieza tenga su propia matriz (rotaciones

@@ -1,4 +1,4 @@
-import Board from '../modules/Board.js';
+import Board, { GARBAGE_COLOR, GHOST_COLOR } from '../modules/Board.js';
 
 describe('Board', () => {
   let board;
@@ -54,18 +54,19 @@ describe('Board', () => {
     expect(board.canMove(piece, 0, 0)).toBe(true);
   });
 
-  test('lockPiece should lock the piece on the board', () => {
-    const piece = { shape: [[1]], x: 0, y: 0, color: 'red' };
+  // La grilla guarda el color de la pieza para que lo conserve al fijarse.
+  test('lockPiece guarda el color de la pieza en la grilla', () => {
+    const piece = { shape: [[1]], x: 0, y: 0, color: '#00e5e5' };
     board.lockPiece(piece);
-    expect(board.grid[0][0]).toBe(1);
+    expect(board.grid[0][0]).toBe('#00e5e5');
   });
 
   test('lockPiece should lock every filled cell of a multi-cell piece', () => {
-    const piece = { shape: [[1, 1], [0, 1]], x: 2, y: 3, color: 'red' };
+    const piece = { shape: [[1, 1], [0, 1]], x: 2, y: 3, color: '#e59000' };
     board.lockPiece(piece);
-    expect(board.grid[3][2]).toBe(1);
-    expect(board.grid[3][3]).toBe(1);
-    expect(board.grid[4][3]).toBe(1);
+    expect(board.grid[3][2]).toBe('#e59000');
+    expect(board.grid[3][3]).toBe('#e59000');
+    expect(board.grid[4][3]).toBe('#e59000');
     expect(board.grid[4][2]).toBe(0); // celda vacía del shape
   });
 
@@ -96,13 +97,17 @@ describe('Board', () => {
     expect(board.grid[18][0]).toBe(0);
   });
 
-  test('draw should update the DOM with the correct colors', () => {
-    board.grid[0][0] = 1;
+  // Regresión: draw() pintaba de rojo toda celda ocupada, así que la pieza
+  // perdía su color en cuanto se posaba.
+  test('draw pinta cada celda con el color que guarda la grilla', () => {
+    board.lockPiece({ shape: [[1]], x: 0, y: 0, color: '#00e5e5' });
+    board.lockPiece({ shape: [[1]], x: 1, y: 0, color: '#e59000' });
     board.draw();
-    expect(element.children[0].style.backgroundColor).toBe('red');
-    // Una celda vacía usa el color de fondo, no el de una pieza.
-    expect(element.children[1].style.backgroundColor).not.toBe('red');
-    expect(element.children[1].style.backgroundColor).toBeTruthy();
+
+    expect(element.children[0].style.backgroundColor).toBe('rgb(0, 229, 229)');
+    expect(element.children[1].style.backgroundColor).toBe('rgb(229, 144, 0)');
+    // Una celda vacía usa el color de fondo.
+    expect(element.children[2].style.backgroundColor).toBe('rgb(68, 68, 68)');
   });
 
   test('drawPiece should draw the piece on the board', () => {
@@ -111,12 +116,17 @@ describe('Board', () => {
     expect(element.children[0].style.backgroundColor).toBe('red');
   });
 
+  test('drawGhost usa un color neutro, no el de ninguna pieza', () => {
+    // Con las piezas ya coloreadas, un fantasma rojo se confundía con una Z.
+    expect(GHOST_COLOR).not.toMatch(/255,\s*0,\s*0/);
+  });
+
   test('drawGhost should draw the ghost piece on the board', () => {
     const piece = { shape: [[1]], x: 0, y: 0 };
     const ghostY = 5;
     board.drawGhost(piece, ghostY);
     const index = ghostY * board.width + piece.x;
-    expect(element.children[index].style.backgroundColor).toBe('rgba(255, 0, 0, 0.5)');
+    expect(element.children[index].style.backgroundColor).toBe(GHOST_COLOR);
   });
 });
 
@@ -149,6 +159,11 @@ describe('Board.addGarbage', () => {
     expect(board.grid[19].filter(c => c).length).toBe(9);
     expect(board.grid[19][3]).toBe(0);
     expect(board.grid[18][3]).toBe(0); // "basura limpia": mismo hueco
+  });
+
+  test('la basura se distingue en gris', () => {
+    board.addGarbage(1, 3);
+    expect(board.grid[19][0]).toBe(GARBAGE_COLOR);
   });
 
   test('empuja hacia arriba lo que ya había', () => {

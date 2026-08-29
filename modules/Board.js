@@ -1,3 +1,15 @@
+// La grilla guarda 0 en las celdas vacías y el COLOR de la pieza en las
+// ocupadas. Antes guardaba un 1, de modo que toda pieza fijada se pintaba de
+// rojo y perdía su color en cuanto se posaba.
+export const EMPTY_COLOR = '#444';
+
+// La basura del rival se distingue en gris, como en los juegos con color.
+export const GARBAGE_COLOR = '#8a8a8a';
+
+// Fantasma neutro: con las piezas ya coloreadas, una sombra roja se confundía
+// con una pieza Z.
+export const GHOST_COLOR = 'rgba(255, 255, 255, 0.28)';
+
 export default class Board {
   constructor(width, height, element) {
     this.width = width;
@@ -45,7 +57,8 @@ export default class Board {
         if (shape[sy][sx] !== 0) {
           const boardY = y + sy;
           const boardX = x + sx;
-          if (boardY >= 0) this.grid[boardY][boardX] = 1; // Usar valores numéricos
+          // Se guarda el color para que la pieza lo conserve al quedar fijada.
+          if (boardY >= 0) this.grid[boardY][boardX] = color || EMPTY_COLOR;
         }
       }
     }
@@ -73,7 +86,7 @@ export default class Board {
       const expulsada = this.grid.shift();
       if (expulsada.some(cell => cell)) overflow = true;
 
-      const fila = new Array(this.width).fill(1);
+      const fila = new Array(this.width).fill(GARBAGE_COLOR);
       fila[huecos[i]] = 0;
       this.grid.push(fila);
     }
@@ -105,10 +118,14 @@ export default class Board {
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const index = y * this.width + x;
-        const cellColor = this.grid[y][x];
+        const valor = this.grid[y][x];
         const cell = cells[index];
-        cell.classList.remove('line-clear', 'ghost'); // Limpiar clases
-        cell.style.backgroundColor = cellColor === 0 ? '#444' : 'red'; // Usar un color fijo como 'red'
+        cell.classList.remove('line-clear', 'ghost');
+        // La grilla guarda un color; se admite cualquier otro valor "lleno"
+        // por si alguien la rellena a mano.
+        cell.style.backgroundColor = !valor
+          ? EMPTY_COLOR
+          : (typeof valor === 'string' ? valor : GARBAGE_COLOR);
       }
     }
   }
@@ -131,7 +148,7 @@ export default class Board {
   drawGhost(piece, ghostY) {
     const cells = this.element.children;
     const { x, shape } = piece;
-    const ghostColor = 'rgba(255, 0, 0, 0.5)'; // Color semitransparente para la sombra
+    const ghostColor = GHOST_COLOR;
 
     for (let sy = 0; sy < shape.length; sy++) {
       for (let sx = 0; sx < shape[sy].length; sx++) {

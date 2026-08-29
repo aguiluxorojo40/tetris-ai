@@ -67,6 +67,10 @@ jugada mediocre (de la mitad peor de la lista, que es como falla un humano).
 
 ## Piezas
 
+Cada forma lleva su color de la Guideline: I azul claro, J azul oscuro, L
+naranja, O amarillo, S verde, Z rojo y T magenta. La basura del rival se
+distingue en gris.
+
 El reparto usa el **Random Generator** de la Guideline, la "bolsa de 7": cada
 tanda baraja una vez cada pieza y las reparte. Con azar uniforme puedes pasarte
 veinte piezas sin ver una I; con la bolsa, la espera nunca pasa de 12.

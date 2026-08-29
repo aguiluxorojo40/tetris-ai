@@ -4,6 +4,7 @@ import Game, {
   BACK_TO_BACK_BONUS,
   PERFECT_CLEAR_GARBAGE,
 } from '../modules/Game.js';
+import { GARBAGE_COLOR } from '../modules/Board.js';
 
 // -----------------------------------------------------------------------------
 // Utilidades de test
@@ -137,7 +138,8 @@ describe('Game — bloqueo, hard drop y líneas', () => {
     game.currentPiece = makePiece([[1]], 3, 0);
     game.hardDrop();
     // Cae 19 filas => 19 * 2 = 38 puntos y celda fijada en la fila inferior.
-    expect(game.board.grid[19][3]).toBe(1);
+    // La grilla guarda el color de la pieza, no un 1.
+    expect(game.board.grid[19][3]).toBe('red');
     expect(game.score).toBe(38);
   });
 
@@ -398,9 +400,9 @@ describe('Game — basura del modo versus', () => {
     game.executeAction(4); // hard drop, sin completar línea
 
     expect(game.pendingGarbage).toBe(0);
-    expect(game.board.grid[19][0]).toBe(0);        // el hueco
-    expect(game.board.grid[19][1]).toBe(1);
-    expect(game.board.grid[18][0]).toBe(0);        // mismo hueco en ambas filas
+    expect(game.board.grid[19][0]).toBe(0);            // el hueco
+    expect(game.board.grid[19][1]).toBe(GARBAGE_COLOR); // la basura va en gris
+    expect(game.board.grid[18][0]).toBe(0);            // mismo hueco en ambas filas
   });
 
   test('la basura no entra si la jugada despeja líneas', () => {
