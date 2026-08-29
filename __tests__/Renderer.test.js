@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import Board from '../modules/Board.js';
 import DomRenderer, {
   EMPTY_COLOR,
@@ -112,5 +113,59 @@ describe('DomRenderer', () => {
   test('dispose vacía el tablero', () => {
     renderer.dispose();
     expect(element.children.length).toBe(0);
+  });
+});
+
+describe('assets/cubo.json — el modelo de Meshy reducido', () => {
+  // El fichero se carga con fetch en el navegador; aquí se lee del disco para
+  // comprobar que es coherente antes de que llegue a producción.
+  const modelo = JSON.parse(
+    readFileSync(new URL('../assets/cubo.json', import.meta.url), 'utf8')
+  );
+
+  test('trae posiciones, normales e índices', () => {
+    expect(Array.isArray(modelo.positions)).toBe(true);
+    expect(Array.isArray(modelo.normals)).toBe(true);
+    expect(Array.isArray(modelo.indices)).toBe(true);
+  });
+
+  test('hay una normal por cada vértice', () => {
+    expect(modelo.normals.length).toBe(modelo.positions.length);
+    expect(modelo.positions.length % 3).toBe(0);
+  });
+
+  test('los índices forman triángulos y apuntan a vértices existentes', () => {
+    const vertices = modelo.positions.length / 3;
+    expect(modelo.indices.length % 3).toBe(0);
+    expect(Math.max(...modelo.indices)).toBeLessThan(vertices);
+    expect(Math.min(...modelo.indices)).toBeGreaterThanOrEqual(0);
+  });
+
+  // El original de Meshy traía 1.938.500 triángulos: 220 instancias de eso
+  // serían 426 millones por fotograma.
+  test('está reducido a un número de triángulos jugable', () => {
+    const triangulos = modelo.indices.length / 3;
+    expect(triangulos).toBeGreaterThan(100);   // sigue teniendo forma
+    expect(triangulos).toBeLessThan(10000);    // y cabe en un móvil
+  });
+
+  test('está normalizado a un cubo unidad centrado en el origen', () => {
+    const eje = i => modelo.positions.filter((_, k) => k % 3 === i);
+    for (let i = 0; i < 3; i++) {
+      const valores = eje(i);
+      const min = Math.min(...valores);
+      const max = Math.max(...valores);
+      expect(max - min).toBeCloseTo(1, 1);        // lado ≈ 1
+      expect((min + max) / 2).toBeCloseTo(0, 1);  // centrado
+    }
+  });
+
+  test('las normales son unitarias', () => {
+    for (let i = 0; i < 60; i += 3) {
+      const largo = Math.hypot(
+        modelo.normals[i], modelo.normals[i + 1], modelo.normals[i + 2]
+      );
+      expect(largo).toBeCloseTo(1, 2);
+    }
   });
 });

@@ -83,10 +83,18 @@ conexión. **Se importa de forma dinámica y sólo al activar el 3D**, así que 
 partida normal no descarga un solo byte de la librería. Si falla la carga o el
 navegador no soporta WebGL, se queda en 2D y se sigue jugando.
 
-El renderizador 3D dibuja con un único cubo reutilizado 220 veces. Sustituir esa
-geometría por un modelo (por ejemplo uno generado con Meshy) es cambiar una
-línea: todas las piezas comparten el mismo cubo, así que salen coherentes entre
-sí por construcción.
+Los bloques se dibujan con **instanciado**: una sola llamada de dibujo para
+todo el tablero, en lugar de una por bloque. Es lo que permite usar un modelo
+detallado sin hundir el rendimiento en el móvil.
+
+El modelo es `assets/cubo.json`, un cubo generado con **Meshy AI**. El original
+traía 1.938.500 triángulos, sin normales ni UVs (la fase de *preview* de Meshy,
+anterior al texturizado), así que se redujo por agrupamiento espacial a 3.531,
+se normalizó a un cubo unidad y se le calcularon normales suaves. Si el archivo
+no carga, se usa una caja normal y el juego sigue funcionando.
+
+Como las siete piezas comparten ese mismo cubo, salen coherentes entre sí por
+construcción: no hay forma de que una S y una Z tengan biseles distintos.
 
 ## Piezas
 

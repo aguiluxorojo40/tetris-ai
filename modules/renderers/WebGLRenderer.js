@@ -23,9 +23,13 @@ const INCLINACION = 0.13;
 const GARBAGE_COLOR = 0x8a8a8a;
 const GHOST_COLOR = 0xffffff;
 
-// Reserva de cubos: 200 del tablero + 4 de la pieza + 4 de la sombra, con
-// holgura. Se reutilizan siempre los mismos para no crear objetos por frame.
-const POOL_SIZE = 220;
+// Cubos como mucho en pantalla: 200 del tablero + 4 de la pieza, con holgura.
+const MAX_BLOQUES = 210;
+const MAX_SOMBRA = 8;
+
+// Modelo del cubo. Si no está o falla, se usa una caja normal: el juego no
+// puede quedarse sin dibujar por un archivo que no cargue.
+const RUTA_CUBO = './assets/cubo.json';
 
 export default class WebGLRenderer {
   init(element, width, height) {
@@ -69,24 +73,72 @@ export default class WebGLRenderer {
     fondo.position.z = -0.6;
     this.scene.add(fondo);
 
-    // Un único cubo, reutilizado: es exactamente el plan del cubo de Meshy.
-    // Cuando haya un modelo, basta con sustituir esta geometría.
+    // Un solo cubo dibujado muchas veces mediante instanciado: una única
+    // llamada de dibujo para todo el tablero, en vez de una por bloque. Es lo
+    // que permite usar un modelo detallado sin hundir el rendimiento.
     this.geometry = new THREE.BoxGeometry(0.92, 0.92, 0.92);
-    this.pool = [];
-    for (let i = 0; i < POOL_SIZE; i++) {
-      const cubo = new THREE.Mesh(
-        this.geometry,
-        new THREE.MeshLambertMaterial({ color: 0xffffff })
-      );
-      cubo.visible = false;
-      this.scene.add(cubo);
-      this.pool.push(cubo);
-    }
 
+    this.bloques = new THREE.InstancedMesh(
+      this.geometry,
+      new THREE.MeshLambertMaterial(),
+      MAX_BLOQUES
+    );
+    this.bloques.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.bloques.count = 0;
+    this.scene.add(this.bloques);
+
+    // La sombra va en su propia malla porque necesita material transparente.
+    this.sombra = new THREE.InstancedMesh(
+      this.geometry,
+      new THREE.MeshLambertMaterial({
+        color: GHOST_COLOR, transparent: true, opacity: 0.3,
+      }),
+      MAX_SOMBRA
+    );
+    this.sombra.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.sombra.count = 0;
+    this.scene.add(this.sombra);
+
+    this.matriz = new THREE.Matrix4();
+    this.color = new THREE.Color();
     this.usados = 0;
+    this.usadosSombra = 0;
+
+    this.cargarCubo();
     this.resize();
     this.onResize = () => this.resize();
     window.addEventListener('resize', this.onResize);
+  }
+
+  /**
+   * Sustituye la caja por el modelo del cubo, si está disponible. Se hace en
+   * segundo plano: el tablero se dibuja desde el primer momento con la caja y
+   * el modelo entra cuando llega.
+   */
+  async cargarCubo() {
+    try {
+      const respuesta = await fetch(RUTA_CUBO);
+      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+      const datos = await respuesta.json();
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position',
+        new THREE.Float32BufferAttribute(datos.positions, 3));
+      geo.setAttribute('normal',
+        new THREE.Float32BufferAttribute(datos.normals, 3));
+      geo.setIndex(datos.indices);
+      // El modelo viene normalizado a un cubo unidad; se deja el mismo hueco
+      // entre bloques que tenía la caja.
+      geo.scale(0.92, 0.92, 0.92);
+
+      this.geometry.dispose();
+      this.geometry = geo;
+      this.bloques.geometry = geo;
+      this.sombra.geometry = geo;
+      this.render();
+    } catch (error) {
+      console.warn('No se pudo cargar el modelo del cubo, se usa una caja:', error);
+    }
   }
 
   resize() {
@@ -114,24 +166,31 @@ export default class WebGLRenderer {
     this.camera.updateProjectionMatrix();
   }
 
-  /** Coloca el siguiente cubo libre de la reserva. */
-  colocar(x, y, color, opacidad = 1) {
-    if (this.usados >= this.pool.length) return;
-
-    const cubo = this.pool[this.usados++];
+  /** Sitúa una instancia en la casilla indicada. */
+  colocar(x, y, color) {
+    if (this.usados >= MAX_BLOQUES) return;
     // Coordenadas de tablero a mundo: x hacia la derecha, y hacia abajo.
-    cubo.position.set(x - (this.width - 1) / 2, (this.height - 1) / 2 - y, 0);
-    cubo.material.color.set(color);
-    cubo.material.transparent = opacidad < 1;
-    cubo.material.opacity = opacidad;
-    cubo.scale.setScalar(opacidad < 1 ? 0.7 : 1); // la sombra, más pequeña
-    cubo.visible = true;
+    this.matriz.makeTranslation(
+      x - (this.width - 1) / 2, (this.height - 1) / 2 - y, 0
+    );
+    this.bloques.setMatrixAt(this.usados, this.matriz);
+    this.bloques.setColorAt(this.usados, this.color.set(color));
+    this.usados++;
   }
 
-  /** Empieza un fotograma nuevo: oculta todo y repuebla. */
+  colocarSombra(x, y) {
+    if (this.usadosSombra >= MAX_SOMBRA) return;
+    this.matriz.makeTranslation(
+      x - (this.width - 1) / 2, (this.height - 1) / 2 - y, 0
+    );
+    this.matriz.scale(new THREE.Vector3(0.75, 0.75, 0.75));
+    this.sombra.setMatrixAt(this.usadosSombra++, this.matriz);
+  }
+
+  /** Empieza un fotograma nuevo: vacía las instancias y repuebla. */
   drawCells(grid) {
-    for (const cubo of this.pool) cubo.visible = false;
     this.usados = 0;
+    this.usadosSombra = 0;
 
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
@@ -157,19 +216,26 @@ export default class WebGLRenderer {
     const { x, shape } = piece;
     for (let sy = 0; sy < shape.length; sy++) {
       for (let sx = 0; sx < shape[sy].length; sx++) {
-        if (shape[sy][sx]) this.colocar(x + sx, ghostY + sy, GHOST_COLOR, 0.35);
+        if (shape[sy][sx]) this.colocarSombra(x + sx, ghostY + sy);
       }
     }
     this.render();
   }
 
   render() {
+    this.bloques.count = this.usados;
+    this.bloques.instanceMatrix.needsUpdate = true;
+    if (this.bloques.instanceColor) this.bloques.instanceColor.needsUpdate = true;
+    this.sombra.count = this.usadosSombra;
+    this.sombra.instanceMatrix.needsUpdate = true;
+
     this.renderer.render(this.scene, this.camera);
   }
 
   dispose() {
     window.removeEventListener('resize', this.onResize);
-    for (const cubo of this.pool) cubo.material.dispose();
+    this.bloques.material.dispose();
+    this.sombra.material.dispose();
     this.geometry.dispose();
     this.renderer.dispose();
     if (this.element) {
