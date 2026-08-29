@@ -1,6 +1,7 @@
 import Game from './modules/Game.js';
 import AI from './modules/AI.js';
 import GamepadController from './modules/Gamepad.js';
+import DomRenderer from './modules/renderers/DomRenderer.js';
 import { createPieceSequence, createPieceReader } from './modules/Utils.js';
 import { CONFIG } from './config.js';
 
@@ -11,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleAIButton = document.getElementById(CONFIG.BUTTON_IDS.TOGGLE_AI_BUTTON);
   const versusButton = document.getElementById(CONFIG.BUTTON_IDS.VERSUS_BUTTON);
   const aiLevelSelect = document.getElementById(CONFIG.BUTTON_IDS.AI_LEVEL);
+  const renderButton = document.getElementById(CONFIG.BUTTON_IDS.RENDER_BUTTON);
   const optionsButton = document.getElementById(CONFIG.BUTTON_IDS.OPTIONS_BUTTON);
   const optionsMenu = document.querySelector(CONFIG.SELECTORS.OPTIONS_MENU);
   const bgImageInput = document.getElementById(CONFIG.BUTTON_IDS.BG_IMAGE_INPUT);
@@ -34,6 +36,59 @@ document.addEventListener('DOMContentLoaded', () => {
   let aiActive = false;   // la IA juega el tablero principal
   let versus = false;
   let matchOver = false;
+  let use3D = false;
+
+  // three.js pesa unos 670 KB: se importa sólo si se activa el 3D, y una vez.
+  let WebGLRendererClass = null;
+
+  async function loadWebGLRenderer() {
+    if (!WebGLRendererClass) {
+      const modulo = await import('./modules/renderers/WebGLRenderer.js');
+      WebGLRendererClass = modulo.default;
+    }
+    return WebGLRendererClass;
+  }
+
+  /** Devuelve el renderizador que toca, o null para el de por defecto. */
+  async function makeRenderer() {
+    if (!use3D) return null;
+    const Clase = await loadWebGLRenderer();
+    return new Clase();
+  }
+
+  /**
+   * Alterna entre la rejilla de divs y WebGL. Si la librería no carga o el
+   * navegador no soporta WebGL, se queda en 2D y el juego sigue jugándose.
+   */
+  async function toggleRender() {
+    const destino = !use3D;
+    renderButton.disabled = true;
+
+    try {
+      if (destino) await loadWebGLRenderer();
+      use3D = destino;
+    } catch (error) {
+      console.error('No se pudo activar el 3D:', error);
+      use3D = false;
+    } finally {
+      renderButton.disabled = false;
+    }
+
+    renderButton.textContent = use3D ? '2D' : '3D';
+    renderButton.setAttribute('aria-pressed', use3D);
+    document.body.classList.toggle('modo-3d', use3D);
+
+    // Se aplica al vuelo, conservando el estado de la partida.
+    for (const partida of [game, rivalGame]) {
+      if (!partida) continue;
+      try {
+        partida.board.setRenderer(await makeRenderer() || new DomRenderer());
+        partida.draw();
+      } catch (error) {
+        console.error('No se pudo cambiar el renderizador:', error);
+      }
+    }
+  }
 
   let ai = new AI();       // cerebro del tablero principal
   let rivalAI = new AI();  // cerebro del rival
@@ -141,13 +196,13 @@ document.addEventListener('DOMContentLoaded', () => {
   /**
    * Arranca una partida normal.
    */
-  function startSingle() {
+  async function startSingle() {
     if (game) game.stop();
     hideResult();
 
     const gravity = parseInt(difficultySelect.value, 10);
     aplicarNivel();
-    game = new Game(gravity);
+    game = new Game(gravity, { renderer: await makeRenderer() });
     game.isAIPlaying = aiActive;
     game.start();
 
@@ -157,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /**
    * Arranca un duelo: dos tableros con la misma secuencia de piezas.
    */
-  function startVersus() {
+  async function startVersus() {
     stopGames();
     hideResult();
     matchOver = false;
@@ -180,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     aplicarNivel(); // recoge el nivel elegido antes de empezar el duelo
 
     game = new Game(gravity, {
+      renderer: await makeRenderer(),
       pieceSource: createPieceReader(sequence),
       controls: true,
       onGameOver: () => finish('humano'),
@@ -188,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     rivalGame = new Game(gravity, {
+      renderer: await makeRenderer(),
       ids: RIVAL_IDS,
       pieceSource: createPieceReader(sequence),
       controls: false,   // el tablero de la IA no debe robar el teclado
@@ -262,6 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
   startButton.addEventListener('click', startGame);
   toggleAIButton.addEventListener('click', toggleAI);
   versusButton.addEventListener('click', toggleVersus);
+  renderButton.addEventListener('click', toggleRender);
   optionsButton.addEventListener('click', toggleOptionsMenu);
   bgImageInput.addEventListener('change', changeBackground);
   aiLevelSelect.addEventListener('change', aplicarNivel);

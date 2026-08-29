@@ -47,6 +47,8 @@ export default class Game {
    * @param {boolean} [options.controls] - Si escucha teclado y botones táctiles.
    *   El tablero de la IA no debe hacerlo.
    * @param {Function} [options.onGameOver] - Sustituye al aviso por defecto.
+   * @param {Object} [options.renderer] - Cómo se dibuja el tablero. Por
+   *   defecto, rejilla de divs; el modo 3D inyecta el renderizador de WebGL.
    */
   constructor(gravity, options = {}) {
     const ids = { ...DEFAULT_IDS, ...(options.ids || {}) };
@@ -83,7 +85,9 @@ export default class Game {
     this.gravity = gravity;
     this.interval = null;
 
-    this.board = new Board(this.boardWidth, this.boardHeight, this.boardElement);
+    this.board = new Board(
+      this.boardWidth, this.boardHeight, this.boardElement, options.renderer || null
+    );
     this.currentPiece = null;
     // Identificador incremental de la pieza en juego. La IA lo usa para saber
     // cuándo ha aparecido una pieza nueva y replantear.

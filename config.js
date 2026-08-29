@@ -13,6 +13,7 @@ export const CONFIG = {
     GAMEPAD_STATUS: 'gamepadStatus',
     VERSUS_BUTTON: 'versusButton',
     AI_LEVEL: 'aiLevel',
+    RENDER_BUTTON: 'renderButton',
     RESULT: 'result'
   },
 

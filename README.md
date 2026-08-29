@@ -65,6 +65,29 @@ jugada mediocre (de la mitad peor de la lista, que es como falla un humano).
 | Difícil | 120 ms | 5 % | ~1 por cada 150 piezas |
 | Imposible | 40 ms | 0 % | 0 en 500 piezas |
 
+## Modo 3D
+
+El tablero puede dibujarse con WebGL (three.js) en lugar de con una rejilla de
+`<div>`. El botón **3D** lo alterna en caliente, sin perder la partida.
+
+`Board` no sabe cómo se dibuja: delega en un renderizador con cuatro métodos
+(`init`, `drawCells`, `drawPiece`, `drawGhost`). Hay dos:
+
+| Renderizador | Peso | Notas |
+|---|---|---|
+| `DomRenderer` | 0 | Por defecto. Rejilla de divs, arranca al instante |
+| `WebGLRenderer` | ~670 KB | three.js, cubos con luz y volumen |
+
+three.js está en `vendor/` y no en un CDN, para que el juego funcione sin
+conexión. **Se importa de forma dinámica y sólo al activar el 3D**, así que una
+partida normal no descarga un solo byte de la librería. Si falla la carga o el
+navegador no soporta WebGL, se queda en 2D y se sigue jugando.
+
+El renderizador 3D dibuja con un único cubo reutilizado 220 veces. Sustituir esa
+geometría por un modelo (por ejemplo uno generado con Meshy) es cambiar una
+línea: todas las piezas comparten el mismo cubo, así que salen coherentes entre
+sí por construcción.
+
 ## Piezas
 
 Cada forma lleva su color de la Guideline: I azul claro, J azul oscuro, L

@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Tetris</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- three.js vive en el repo, no en un CDN, para que el juego funcione sin
+       conexión. Sólo se descarga al activar el 3D: main.js lo importa de
+       forma dinámica. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.min.js"
+    }
+  }
+  </script>
 </head>
 <body>
   <div class="game-container">
@@ -61,6 +71,7 @@
           <option value="700">Fácil</option>
         </select>
         <button id="versusButton" aria-pressed="false">Versus</button>
+        <button id="renderButton" aria-pressed="false">3D</button>
         <button id="toggleAIButton" aria-pressed="false">Activar IA</button>
         <button id="optionsButton" aria-controls="optionsMenu" aria-expanded="false">Opciones</button>
       </div>
@@ -86,6 +97,14 @@
 
       <label for="bgImageInput">Imagen de fondo del tablero:</label>
       <input type="file" id="bgImageInput" accept="image/*">
+
+      <h3>Modo 3D</h3>
+      <p class="gamepad-hint">
+        Dibuja el tablero con WebGL en lugar de con una rejilla de divs. La
+        librería son unos 670 KB y sólo se descarga al activarlo, así que una
+        partida normal no carga nada de más. Si tu navegador no soporta WebGL,
+        el juego se queda en 2D y sigue funcionando.
+      </p>
 
       <h3>Modo versus</h3>
       <p class="gamepad-hint">

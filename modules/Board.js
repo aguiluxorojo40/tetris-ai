@@ -1,28 +1,35 @@
-// La grilla guarda 0 en las celdas vacías y el COLOR de la pieza en las
-// ocupadas. Antes guardaba un 1, de modo que toda pieza fijada se pintaba de
-// rojo y perdía su color en cuanto se posaba.
-export const EMPTY_COLOR = '#444';
+import DomRenderer, {
+  EMPTY_COLOR,
+  GARBAGE_COLOR,
+  GHOST_COLOR,
+} from './renderers/DomRenderer.js';
 
-// La basura del rival se distingue en gris, como en los juegos con color.
-export const GARBAGE_COLOR = '#8a8a8a';
-
-// Fantasma neutro: con las piezas ya coloreadas, una sombra roja se confundía
-// con una pieza Z.
-export const GHOST_COLOR = 'rgba(255, 255, 255, 0.28)';
+// Se reexportan para no romper a quien ya los importaba de aquí.
+export { EMPTY_COLOR, GARBAGE_COLOR, GHOST_COLOR };
 
 export default class Board {
-  constructor(width, height, element) {
+  /**
+   * @param {number} width
+   * @param {number} height
+   * @param {HTMLElement} element
+   * @param {Object} [renderer] - Cómo se dibuja. Por defecto, rejilla de divs;
+   *   el modo 3D inyecta aquí el renderizador de WebGL.
+   */
+  constructor(width, height, element, renderer = null) {
     this.width = width;
     this.height = height;
     this.element = element;
     this.grid = Array.from({ length: height }, () => Array(width).fill(0));
-    
-    // Crear la representación visual del tablero en el DOM
-    this.element.innerHTML = '';
-    for (let i = 0; i < width * height; i++) {
-      const cell = document.createElement('div');
-      this.element.appendChild(cell);
-    }
+
+    this.renderer = renderer || new DomRenderer();
+    this.renderer.init(element, width, height);
+  }
+
+  /** Cambia de renderizador en caliente, conservando el estado del tablero. */
+  setRenderer(renderer) {
+    if (this.renderer && this.renderer.dispose) this.renderer.dispose();
+    this.renderer = renderer;
+    this.renderer.init(this.element, this.width, this.height);
   }
 
   canMove(piece, dx, dy) {
@@ -114,52 +121,14 @@ export default class Board {
   }
 
   draw() {
-    const cells = this.element.children;
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        const index = y * this.width + x;
-        const valor = this.grid[y][x];
-        const cell = cells[index];
-        cell.classList.remove('line-clear', 'ghost');
-        // La grilla guarda un color; se admite cualquier otro valor "lleno"
-        // por si alguien la rellena a mano.
-        cell.style.backgroundColor = !valor
-          ? EMPTY_COLOR
-          : (typeof valor === 'string' ? valor : GARBAGE_COLOR);
-      }
-    }
+    this.renderer.drawCells(this.grid);
   }
 
   drawPiece(piece) {
-    const cells = this.element.children;
-    // Color de reserva neutro: el rojo se confundiría con una pieza Z.
-    const { x, y, shape, color = GARBAGE_COLOR } = piece;
-    for (let sy = 0; sy < shape.length; sy++) {
-      for (let sx = 0; sx < shape[sy].length; sx++) {
-        if (shape[sy][sx] !== 0) {
-          const index = (y + sy) * this.width + (x + sx);
-          if (index >= 0 && index < this.width * this.height) {
-            cells[index].style.backgroundColor = color; // Establece el color
-          }
-        }
-      }
-    }
+    this.renderer.drawPiece(piece);
   }
 
   drawGhost(piece, ghostY) {
-    const cells = this.element.children;
-    const { x, shape } = piece;
-    const ghostColor = GHOST_COLOR;
-
-    for (let sy = 0; sy < shape.length; sy++) {
-      for (let sx = 0; sx < shape[sy].length; sx++) {
-        if (shape[sy][sx] !== 0) {
-          const index = (ghostY + sy) * this.width + (x + sx);
-          if (index >= 0 && index < this.width * this.height) {
-            cells[index].style.backgroundColor = ghostColor; // Aplicar el color de sombra
-          }
-        }
-      }
-    }
+    this.renderer.drawGhost(piece, ghostY);
   }
 }
