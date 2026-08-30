@@ -135,6 +135,10 @@ const cruz = (a, b) => [
 const resta = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const punto = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
+// Clave para agrupar normales por dirección. Iguala el cero negativo al
+// positivo: son la misma dirección, pero toFixed los escribe distinto.
+const familia = (n) => n.map(v => (Math.abs(v) < 1e-9 ? 0 : v).toFixed(5)).join(',');
+
 // Volumen con signo por el teorema de la divergencia. Sólo sale positivo y con
 // sentido si la malla está cerrada y todas las caras miran hacia fuera: una
 // sola cara invertida o un hueco lo delatan.
@@ -205,7 +209,7 @@ describe('crearCuboChaflan — chaflán plano (un tramo)', () => {
   test('hay 26 orientaciones distintas de cara', () => {
     const familias = new Set();
     for (let i = 0; i < modelo.positions.length / 3; i++) {
-      familias.add(normal(modelo, i).map(n => n.toFixed(5)).join(','));
+      familias.add(familia(normal(modelo, i)));
     }
     expect(familias.size).toBe(26);
 
@@ -288,7 +292,10 @@ describe('crearCuboChaflan — bisel redondeado', () => {
     expect(dos).toBeLessThan(meta);
     expect(ocho).toBeGreaterThan(dos);
     expect(dieciseis).toBeGreaterThan(ocho);
-    expect(dieciseis).toBeCloseTo(meta, 4);
+    // Con 16 tramos la malla se queda a un 0,01% del sólido exacto, y cada
+    // subdivisión recorta ese hueco a la mitad larga.
+    expect((meta - dieciseis) / meta).toBeLessThan(0.0005);
+    expect(meta - dieciseis).toBeLessThan((meta - ocho) / 2);
   });
 
   // Si las normales no variaran dentro de cada triángulo, el bisel se vería
@@ -309,7 +316,7 @@ describe('crearCuboChaflan — bisel redondeado', () => {
     const planas = new Set();
     for (let i = 0; i < m.positions.length / 3; i++) {
       const n = normal(m, i);
-      if (Math.max(...n.map(Math.abs)) > 0.9999) planas.add(n.map(v => v.toFixed(5)).join(','));
+      if (Math.max(...n.map(Math.abs)) > 0.9999) planas.add(familia(n));
     }
     expect(planas.size).toBe(6);
   });
