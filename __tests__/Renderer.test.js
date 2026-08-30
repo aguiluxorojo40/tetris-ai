@@ -1,4 +1,12 @@
 import Board from '../modules/Board.js';
+import { getRandomPiece } from '../modules/Utils.js';
+import {
+  MATERIALES,
+  GRUPO_LISO,
+  grupoDe,
+  grupos,
+  materialDe,
+} from '../modules/renderers/materiales.js';
 import {
   crearCuboChaflan,
   CHAFLAN_POR_DEFECTO,
@@ -169,8 +177,27 @@ const revisarTriangulos = (m) => {
   }
 };
 
+// Eje sobre el que está proyectada la textura de un polígono, o -1 si sus
+// vértices no comparten proyección. La textura se proyecta sobre la cara del
+// cubo a la que mira el polígono, así que sus tres vértices tienen que salir
+// del mismo par de coordenadas; si no, la textura se rompería dentro del
+// triángulo.
+const ejeProyectado = (m, idx, lado) => {
+  for (let a = 0; a < 3; a++) {
+    const u = (a + 1) % 3, v = (a + 2) % 3;
+    if (idx.every(i => {
+      const p = vertice(m, i);
+      return Math.abs(m.uvs[i*2] - (p[u]/lado + 0.5)) < 1e-6
+          && Math.abs(m.uvs[i*2+1] - (p[v]/lado + 0.5)) < 1e-6;
+    })) return a;
+  }
+  return -1;
+};
+
 const revisarComun = (m, lado) => {
   expect(m.normals.length).toBe(m.positions.length);
+  expect(m.uvs.length).toBe((m.positions.length / 3) * 2);
+  expect(m.uvs.every(v => v >= 0 && v <= 1)).toBe(true);
   expect(m.indices.length % 3).toBe(0);
   expect(Math.min(...m.indices)).toBeGreaterThanOrEqual(0);
   expect(Math.max(...m.indices)).toBeLessThan(m.positions.length / 3);
@@ -188,6 +215,11 @@ const revisarComun = (m, lado) => {
   }
 
   revisarTriangulos(m);
+
+  for (let t = 0; t < m.indices.length; t += 3) {
+    const idx = [m.indices[t], m.indices[t + 1], m.indices[t + 2]];
+    expect(ejeProyectado(m, idx, lado)).toBeGreaterThanOrEqual(0);
+  }
 };
 
 describe('crearCuboChaflan — chaflán plano (un tramo)', () => {
@@ -322,6 +354,54 @@ describe('crearCuboChaflan — bisel redondeado', () => {
   });
 });
 
+describe('crearCuboChaflan — coordenadas de textura', () => {
+  test('cada polígono se proyecta sobre la cara a la que mira', () => {
+    for (const tramos of [1, 2, 4]) {
+      const m = crearCuboChaflan(1, 0.09, tramos);
+      for (let t = 0; t < m.indices.length; t += 3) {
+        const idx = [m.indices[t], m.indices[t + 1], m.indices[t + 2]];
+        const a = ejeProyectado(m, idx, 1);
+        expect(a).toBeGreaterThanOrEqual(0);
+        // Y la cara nunca queda de canto respecto a ese eje, que es lo que
+        // estiraría la textura sin límite. El eje lo elige la normal del
+        // polígono, no la de cada vértice: en un bisel redondeado las
+        // normales de los vértices se abren, así que el corte se pone donde
+        // el peor de ellos sigue holgado.
+        for (const i of idx) {
+          expect(Math.abs(normal(m, i)[a])).toBeGreaterThan(0.4);
+        }
+      }
+    }
+  });
+
+  test('las seis caras planas ocupan el mismo cuadrado interior', () => {
+    const m = crearCuboChaflan(1, 0.09, 1);
+    const us = [], vs = [];
+    for (let t = 0; t < m.indices.length; t += 3) {
+      const n = normal(m, m.indices[t]);
+      if (Math.max(...n.map(Math.abs)) < 0.9999) continue;
+      for (const k of [0, 1, 2]) {
+        us.push(m.uvs[m.indices[t + k] * 2]);
+        vs.push(m.uvs[m.indices[t + k] * 2 + 1]);
+      }
+    }
+    // La cara plana llega hasta ±(lado/2 − chaflán), o sea de 0,09 a 0,91.
+    for (const eje of [us, vs]) {
+      expect(Math.min(...eje)).toBeCloseTo(0.09, 6);
+      expect(Math.max(...eje)).toBeCloseTo(0.91, 6);
+    }
+  });
+
+  test('no dependen del tamaño del cubo', () => {
+    // Se normalizan por el lado, así que un bloque grande no estira la
+    // textura respecto a uno pequeño.
+    const chico = crearCuboChaflan(1, 0.09, 2);
+    const grande = crearCuboChaflan(7, 0.09, 2);
+    expect(grande.uvs.length).toBe(chico.uvs.length);
+    grande.uvs.forEach((v, i) => expect(v).toBeCloseTo(chico.uvs[i], 6));
+  });
+});
+
 describe('crearCuboChaflan — parámetros', () => {
   test('a más chaflán, menos volumen, y el recuento de caras no cambia', () => {
     const suave = crearCuboChaflan(1, 0.04);
@@ -360,5 +440,88 @@ describe('crearCuboChaflan — parámetros', () => {
     expect(crearCuboChaflan(1).indices.length).toBe(
       crearCuboChaflan(1, CHAFLAN_POR_DEFECTO, SEGMENTOS_POR_DEFECTO).indices.length
     );
+  });
+});
+
+
+describe('materiales — qué viste cada tetromino', () => {
+  // Los colores salen de las piezas de verdad, no de una copia: si algún día
+  // se retoca la paleta de Utils.js, el registro tiene que enterarse en vez de
+  // quedarse apuntando a un color que ya no existe.
+  const piezas = new Map();
+  // Dos bolsas completas garantizan las siete piezas, sea cual sea el punto
+  // de la bolsa en el que arranque.
+  for (let i = 0; i < 14; i++) {
+    const pieza = getRandomPiece();
+    piezas.set(pieza.color.toLowerCase(), pieza.type);
+  }
+
+  test('las siete piezas están representadas en la muestra', () => {
+    expect(piezas.size).toBe(7);
+  });
+
+  test('cada material apunta a un color de pieza que existe', () => {
+    for (const [color, material] of Object.entries(MATERIALES)) {
+      expect(piezas.has(color)).toBe(true);
+      // Y dice de qué pieza es, que es lo que se lee al añadir una textura.
+      expect(material.pieza).toBe(piezas.get(color));
+    }
+  });
+
+  test('el queso viste a la O, que es la pieza amarilla', () => {
+    const [color, material] = Object.entries(MATERIALES)
+      .find(([, m]) => m.textura.includes('queso'));
+    expect(piezas.get(color)).toBe('O');
+    expect(material.pieza).toBe('O');
+  });
+
+  test('los parámetros de cada material están en rango', () => {
+    for (const material of Object.values(MATERIALES)) {
+      expect(typeof material.textura).toBe('string');
+      expect(material.textura).toMatch(/^\.\/assets\//);
+      // La escala acerca el grano; por encima de 1 lo alejaría hasta perderlo.
+      expect(material.escala).toBeGreaterThan(0);
+      expect(material.escala).toBeLessThanOrEqual(1);
+      // 0 es material puro y 1 el color plano de siempre.
+      expect(material.tinte).toBeGreaterThanOrEqual(0);
+      expect(material.tinte).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test('las claves del registro están en minúsculas y sin repetir', () => {
+    const claves = Object.keys(MATERIALES);
+    expect(claves).toEqual(claves.map(c => c.toLowerCase()));
+    expect(new Set(claves).size).toBe(claves.length);
+  });
+
+  test('cada color va a su grupo, y el resto al liso', () => {
+    for (const color of piezas.keys()) {
+      const esperado = color in MATERIALES ? color : GRUPO_LISO;
+      expect(grupoDe(color)).toBe(esperado);
+    }
+    expect(grupoDe(GARBAGE_COLOR)).toBe(GRUPO_LISO);
+    expect(grupoDe('#123456')).toBe(GRUPO_LISO);
+  });
+
+  test('el reparto no depende de mayúsculas ni de espacios', () => {
+    for (const color of Object.keys(MATERIALES)) {
+      expect(grupoDe(color.toUpperCase())).toBe(color);
+      expect(grupoDe(` ${color} `)).toBe(color);
+    }
+  });
+
+  test('hay un grupo por material más el liso, sin repetidos', () => {
+    const lista = grupos();
+    expect(lista[0]).toBe(GRUPO_LISO);
+    expect(lista.length).toBe(Object.keys(MATERIALES).length + 1);
+    expect(new Set(lista).size).toBe(lista.length);
+  });
+
+  test('materialDe sólo devuelve algo para los colores con textura', () => {
+    for (const color of piezas.keys()) {
+      expect(materialDe(color)).toBe(MATERIALES[color] || null);
+    }
+    expect(materialDe(GRUPO_LISO)).toBeNull();
+    expect(materialDe('#123456')).toBeNull();
   });
 });

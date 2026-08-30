@@ -54,7 +54,7 @@ function normalizar(v) {
  *                         45°; a partir de 2 se redondea, siguiendo un
  *                         cilindro en las aristas y una esfera en las
  *                         esquinas, con normales suaves.
- * @returns {{positions: number[], normals: number[], indices: number[]}}
+ * @returns {{positions: number[], normals: number[], uvs: number[], indices: number[]}}
  *          Arrays planos, listos para una BufferGeometry.
  */
 export function crearCuboChaflan(
@@ -69,7 +69,26 @@ export function crearCuboChaflan(
 
   const positions = [];
   const normals = [];
+  const uvs = [];
   const indices = [];
+
+  // Coordenadas de textura por proyección: cada polígono se proyecta sobre el
+  // plano perpendicular a su eje dominante, o sea la cara del cubo a la que
+  // mira. Es lo que corresponde a un bloque: las seis caras salen sin
+  // deformar, y en los biseles la proyección se estrecha un poco, cosa que
+  // con una textura de grano no se aprecia. Se calcula por polígono y no por
+  // vértice para que todos sus vértices compartan proyección.
+  const proyectar = (puntos, direccion) => {
+    let dominante = 0;
+    for (let i = 1; i < 3; i++) {
+      if (Math.abs(direccion[i]) > Math.abs(direccion[dominante])) dominante = i;
+    }
+    const u = (dominante + 1) % 3;
+    const v = (dominante + 2) % 3;
+    for (const p of puntos) {
+      uvs.push(p[u] / lado + 0.5, p[v] / lado + 0.5);
+    }
+  };
 
   // Añade un polígono convexo como abanico de triángulos, con una única normal
   // para todos sus vértices. El sólido es convexo y está centrado en el origen,
@@ -91,6 +110,7 @@ export function crearCuboChaflan(
       positions.push(p[0], p[1], p[2]);
       normals.push(normal[0], normal[1], normal[2]);
     }
+    proyectar(puntos, normal);
     for (let i = 1; i < puntos.length - 1; i++) {
       indices.push(base, base + i, base + i + 1);
     }
@@ -115,6 +135,7 @@ export function crearCuboChaflan(
       positions.push(p[0], p[1], p[2]);
       normals.push(normalesCara[i][0], normalesCara[i][1], normalesCara[i][2]);
     });
+    proyectar(puntos, media);
     for (let i = 1; i < puntos.length - 1; i++) {
       indices.push(base, base + i, base + i + 1);
     }
@@ -214,7 +235,7 @@ export function crearCuboChaflan(
     }
   }
 
-  return { positions, normals, indices };
+  return { positions, normals, uvs, indices };
 }
 
 export default crearCuboChaflan;
