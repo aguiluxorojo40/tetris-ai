@@ -9,7 +9,8 @@
 
 import * as THREE from 'three';
 import { crearCuboChaflan } from './cuboChaflan.js';
-import { grupoDe, grupos, materialDe } from './materiales.js';
+import { conRabillo, grupoDe, grupos, materialDe } from './materiales.js';
+import { cimaDePieza, cimasConRabillo } from './rabillos.js';
 
 const FOV = 30;
 
@@ -24,6 +25,15 @@ const INCLINACION = 0.13;
 
 const GARBAGE_COLOR = 0x8a8a8a;
 const GHOST_COLOR = 0xffffff;
+
+/**
+ * Color de una casilla de la rejilla. Las piezas guardan el suyo; la basura,
+ * un simple 1. Una casilla vacía no es de ningún color.
+ */
+const colorDe = (valor) => {
+  if (!valor) return null;
+  return typeof valor === 'string' ? valor : GARBAGE_COLOR;
+};
 
 // Cubos como mucho en pantalla: 200 del tablero + 4 de la pieza, con holgura.
 const MAX_BLOQUES = 210;
@@ -105,6 +115,7 @@ export default class WebGLRenderer {
     this.matriz = new THREE.Matrix4();
     this.color = new THREE.Color();
     this.blanco = new THREE.Color(0xffffff);
+    this.escalaRabillo = new THREE.Vector3();
     this.usadosSombra = 0;
 
     this.cargarTexturas();
@@ -149,6 +160,35 @@ export default class WebGLRenderer {
       this.grupos.set(clave, malla);
       this.scene.add(malla);
     }
+    this.crearRabillos();
+  }
+
+  /**
+   * Una malla más por cada material que corone sus bloques con un adorno. Es
+   * decoración y nada más: el juego no sabe que existe, así que las piezas lo
+   * atraviesan sin enterarse.
+   *
+   * Arranca invisible y con la geometría del cubo puesta de relleno. Cuando
+   * llega la malla de verdad se cambia y se enciende; si no llega, el bloque
+   * se queda sin adorno en vez de enseñar un sucedáneo que nadie ha elegido.
+   */
+  crearRabillos() {
+    this.rabillos = new Map();
+    for (const clave of conRabillo()) {
+      const adorno = materialDe(clave).rabillo;
+
+      const malla = new THREE.InstancedMesh(
+        this.geometry,
+        new THREE.MeshPhongMaterial({ color: adorno.color, shininess: 14 }),
+        MAX_BLOQUES
+      );
+      malla.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      malla.count = 0;
+      malla.usados = 0;
+      malla.visible = false;
+      this.rabillos.set(clave, malla);
+      this.scene.add(malla);
+    }
   }
 
   /**
@@ -158,6 +198,7 @@ export default class WebGLRenderer {
    */
   cargarTexturas() {
     this.texturas = [];
+    this.geometriasRabillo = [];
     const cargador = new THREE.TextureLoader();
 
     for (const [clave, malla] of this.grupos) {
@@ -183,6 +224,35 @@ export default class WebGLRenderer {
         undefined,
         () => {}
       );
+    }
+
+    this.cargarRabillos();
+  }
+
+  /**
+   * Trae las mallas de los adornos, en el mismo formato plano que usa el
+   * generador del cubo. Van aparte de las texturas porque son geometría, no
+   * imágenes, y porque un adorno que no llegue no debe impedir que su textura
+   * se vea.
+   */
+  cargarRabillos() {
+    for (const [clave, malla] of this.rabillos) {
+      const adorno = materialDe(clave).rabillo;
+
+      fetch(adorno.malla)
+        .then((respuesta) => (respuesta.ok ? respuesta.json() : Promise.reject()))
+        .then(({ positions, normals, indices }) => {
+          if (!this.rabillos) return; // se cambió de renderizador mientras cargaba
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+          geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+          geo.setIndex(indices);
+          malla.geometry = geo;
+          malla.visible = true;
+          this.geometriasRabillo.push(geo);
+          this.render();
+        })
+        .catch(() => {});
     }
   }
 
@@ -236,6 +306,27 @@ export default class WebGLRenderer {
     malla.usados++;
   }
 
+  /** Corona un bloque con su adorno, apoyado en la cara de arriba. */
+  colocarRabillo(x, y, color) {
+    const clave = grupoDe(color);
+    const malla = this.rabillos.get(clave);
+    if (!malla || malla.usados >= MAX_BLOQUES) return;
+
+    const { alto } = materialDe(clave).rabillo;
+    // El giro va sobre su propio eje, no sobre Z como el del cubo: al cubo le
+    // da igual porque es simétrico, pero al adorno lo tumbaría.
+    this.matriz.makeRotationY(((x * 5 + y * 11) % 4) * (Math.PI / 2));
+    this.matriz.scale(this.escalaRabillo.setScalar(alto));
+    // La malla viene normalizada apoyada en y=0, así que se sube hasta la cara
+    // superior del cubo.
+    this.matriz.setPosition(
+      x - (this.width - 1) / 2,
+      (this.height - 1) / 2 - y + LADO_CUBO / 2,
+      0
+    );
+    malla.setMatrixAt(malla.usados++, this.matriz);
+  }
+
   colocarSombra(x, y) {
     if (this.usadosSombra >= MAX_SOMBRA) return;
     this.matriz.makeTranslation(
@@ -248,14 +339,22 @@ export default class WebGLRenderer {
   /** Empieza un fotograma nuevo: vacía las instancias y repuebla. */
   drawCells(grid) {
     for (const malla of this.grupos.values()) malla.usados = 0;
+    for (const malla of this.rabillos.values()) malla.usados = 0;
     this.usadosSombra = 0;
+
+    // La pieza en juego se dibuja después y necesita saber qué tiene encima,
+    // así que se guarda la rejilla de este fotograma.
+    this.rejilla = grid;
 
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const valor = grid[y][x];
         if (!valor) continue;
-        this.colocar(x, y, typeof valor === 'string' ? valor : GARBAGE_COLOR);
+        this.colocar(x, y, colorDe(valor));
       }
+    }
+    for (const { x, y } of cimasConRabillo(grid)) {
+      this.colocarRabillo(x, y, colorDe(grid[y][x]));
     }
     this.render();
   }
@@ -267,6 +366,8 @@ export default class WebGLRenderer {
         if (shape[sy][sx] && y + sy >= 0) this.colocar(x + sx, y + sy, color);
       }
     }
+    const cima = cimaDePieza({ x, y, shape, color }, this.rejilla);
+    if (cima) this.colocarRabillo(cima.x, cima.y, color);
     this.render();
   }
 
@@ -281,7 +382,7 @@ export default class WebGLRenderer {
   }
 
   render() {
-    for (const malla of this.grupos.values()) {
+    for (const malla of [...this.grupos.values(), ...this.rabillos.values()]) {
       malla.count = malla.usados;
       malla.instanceMatrix.needsUpdate = true;
       if (malla.instanceColor) malla.instanceColor.needsUpdate = true;
@@ -295,14 +396,17 @@ export default class WebGLRenderer {
   dispose() {
     window.removeEventListener('resize', this.onResize);
     for (const malla of this.grupos.values()) malla.material.dispose();
+    for (const malla of this.rabillos.values()) malla.material.dispose();
+    for (const geo of this.geometriasRabillo) geo.dispose();
     for (const textura of this.texturas) textura.dispose();
     this.sombra.material.dispose();
     this.geometry.dispose();
     this.renderer.dispose();
-    // Marca el renderizador como desechado: si una textura llega después de
-    // cambiar a 2D, cargarTexturas() la descarta en vez de tocar una escena
-    // que ya no existe.
+    // Marca el renderizador como desechado: si una textura o una malla llegan
+    // después de cambiar a 2D, se descartan en vez de tocar una escena que ya
+    // no existe.
     this.grupos = null;
+    this.rabillos = null;
     if (this.element) {
       this.element.classList.remove('webgl');
       this.element.innerHTML = '';

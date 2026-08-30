@@ -1,12 +1,16 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import Board from '../modules/Board.js';
 import { getRandomPiece } from '../modules/Utils.js';
 import {
   MATERIALES,
   GRUPO_LISO,
+  conRabillo,
   grupoDe,
   grupos,
   materialDe,
 } from '../modules/renderers/materiales.js';
+import { cimaDePieza, cimasConRabillo } from '../modules/renderers/rabillos.js';
 import {
   crearCuboChaflan,
   CHAFLAN_POR_DEFECTO,
@@ -475,6 +479,13 @@ describe('materiales — qué viste cada tetromino', () => {
     expect(material.pieza).toBe('O');
   });
 
+  test('el tomate viste a la Z, que es la pieza roja', () => {
+    const [color, material] = Object.entries(MATERIALES)
+      .find(([, m]) => m.textura.includes('tomate'));
+    expect(piezas.get(color)).toBe('Z');
+    expect(material.pieza).toBe('Z');
+  });
+
   test('los parámetros de cada material están en rango', () => {
     for (const material of Object.values(MATERIALES)) {
       expect(typeof material.textura).toBe('string');
@@ -523,5 +534,159 @@ describe('materiales — qué viste cada tetromino', () => {
     }
     expect(materialDe(GRUPO_LISO)).toBeNull();
     expect(materialDe('#123456')).toBeNull();
+  });
+});
+
+
+describe('rabillos — dónde va el adorno', () => {
+  const TOMATE = Object.keys(MATERIALES).find(c => MATERIALES[c].rabillo);
+  const OTRO = Object.keys(MATERIALES).find(c => !MATERIALES[c].rabillo);
+  const AJENO = '#123456';
+
+  const tablero = (alto = 6, ancho = 5) =>
+    Array.from({ length: alto }, () => new Array(ancho).fill(0));
+
+  test('el registro declara bien su adorno', () => {
+    for (const clave of conRabillo()) {
+      const { rabillo } = MATERIALES[clave];
+      expect(rabillo.malla).toMatch(/^\.\/assets\/.+\.json$/);
+      expect(typeof rabillo.color).toBe('number');
+      // Alto en unidades de casilla: por encima de 1 taparía la fila de arriba.
+      expect(rabillo.alto).toBeGreaterThan(0);
+      expect(rabillo.alto).toBeLessThanOrEqual(1);
+    }
+    expect(conRabillo().length).toBeGreaterThan(0);
+    expect(conRabillo().every(c => c in MATERIALES)).toBe(true);
+  });
+
+  test('un tablero vacío no luce nada', () => {
+    expect(cimasConRabillo(tablero())).toEqual([]);
+  });
+
+  test('una torre del mismo color luce un solo rabillo, el de arriba', () => {
+    const g = tablero();
+    for (let y = 2; y < 6; y++) g[y][1] = TOMATE;
+    expect(cimasConRabillo(g)).toEqual([{ x: 1, y: 2 }]);
+  });
+
+  test('dos grupos separados lucen uno cada uno', () => {
+    const g = tablero();
+    g[5][0] = TOMATE;
+    g[5][3] = TOMATE;
+    expect(cimasConRabillo(g)).toEqual([{ x: 0, y: 5 }, { x: 3, y: 5 }]);
+  });
+
+  test('los bloques pegados cuentan como un grupo, aunque formen una ele', () => {
+    const g = tablero();
+    g[4][2] = TOMATE;
+    g[5][2] = TOMATE;
+    g[5][3] = TOMATE;
+    expect(cimasConRabillo(g)).toEqual([{ x: 2, y: 4 }]);
+  });
+
+  // Lo importante: el adorno nunca se mete dentro de otro bloque.
+  test('un bloque tapado no luce rabillo', () => {
+    const g = tablero();
+    g[5][1] = TOMATE;
+    g[4][1] = AJENO;
+    expect(cimasConRabillo(g)).toEqual([]);
+  });
+
+  test('en la fila de arriba del todo sí luce: no hay nada que lo tape', () => {
+    const g = tablero();
+    g[0][4] = TOMATE;
+    expect(cimasConRabillo(g)).toEqual([{ x: 4, y: 0 }]);
+  });
+
+  test('los materiales sin adorno y la basura no lucen nada', () => {
+    const g = tablero();
+    g[5][0] = OTRO;
+    g[5][1] = AJENO;
+    g[5][2] = 1; // basura
+    expect(cimasConRabillo(g)).toEqual([]);
+  });
+
+  // El adorno es decoración: calcular dónde va no puede tocar el tablero.
+  test('calcularlo no altera la rejilla', () => {
+    const g = tablero();
+    g[5][1] = TOMATE;
+    g[4][1] = TOMATE;
+    const antes = JSON.stringify(g);
+    cimasConRabillo(g);
+    expect(JSON.stringify(g)).toBe(antes);
+  });
+
+  test('la pieza en juego luce uno solo, en su bloque más alto', () => {
+    // Una Z tumbada: cuatro bloques, un rabillo.
+    const pieza = { shape: [[1, 1, 0], [0, 1, 1]], x: 1, y: 2, color: TOMATE };
+    expect(cimaDePieza(pieza, tablero())).toEqual({ x: 1, y: 2 });
+  });
+
+  test('a igualdad de altura manda el de la izquierda', () => {
+    const pieza = { shape: [[0, 1, 1], [1, 1, 0]], x: 0, y: 1, color: TOMATE };
+    expect(cimaDePieza(pieza, tablero())).toEqual({ x: 1, y: 1 });
+  });
+
+  test('una pieza de otro material no luce nada', () => {
+    const pieza = { shape: [[1, 1], [1, 1]], x: 0, y: 0, color: OTRO };
+    expect(cimaDePieza(pieza, tablero())).toBeNull();
+  });
+
+  test('si algo tapa la cima de la pieza, tampoco', () => {
+    const g = tablero();
+    g[1][1] = AJENO;
+    const pieza = { shape: [[1]], x: 1, y: 2, color: TOMATE };
+    expect(cimaDePieza(pieza, g)).toBeNull();
+  });
+
+  test('una pieza que aún asoma por encima del tablero no luce nada', () => {
+    const pieza = { shape: [[1, 1]], x: 0, y: -1, color: TOMATE };
+    expect(cimaDePieza(pieza, tablero())).toBeNull();
+  });
+
+  test('sin rejilla se supone despejado', () => {
+    const pieza = { shape: [[1]], x: 2, y: 3, color: TOMATE };
+    expect(cimaDePieza(pieza)).toEqual({ x: 2, y: 3 });
+  });
+});
+
+
+describe('assets/rabillo.json — la malla del adorno', () => {
+  // Se resuelve desde la raíz del proyecto y no con import.meta.url, porque
+  // Babel transpila los tests a CommonJS y allí import.meta no existe.
+  const malla = JSON.parse(
+    readFileSync(join(process.cwd(), 'assets', 'rabillo.json'), 'utf8')
+  );
+
+  test('trae posiciones, normales e índices coherentes', () => {
+    expect(malla.normals.length).toBe(malla.positions.length);
+    expect(malla.positions.length % 3).toBe(0);
+    expect(malla.indices.length % 3).toBe(0);
+    expect(Math.min(...malla.indices)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...malla.indices)).toBeLessThan(malla.positions.length / 3);
+  });
+
+  // El original de Meshy traía 1.982.668 triángulos, de los que 32.324 caían
+  // por encima del corte. Aquí sólo cabe lo que se aprecie a 25 píxeles.
+  test('está reducida a un tamaño jugable', () => {
+    const triangulos = malla.indices.length / 3;
+    expect(triangulos).toBeGreaterThan(50);   // sigue teniendo forma
+    expect(triangulos).toBeLessThanOrEqual(300);
+  });
+
+  test('viene apoyada en y=0 y de una unidad de alto', () => {
+    // Así el registro decide su tamaño con un solo número, y el renderizador
+    // sólo tiene que subirla hasta la cara superior del cubo.
+    const alturas = malla.positions.filter((_, i) => i % 3 === 1);
+    expect(Math.min(...alturas)).toBeCloseTo(0, 6);
+    expect(Math.max(...alturas)).toBeCloseTo(1, 6);
+  });
+
+  test('las normales son unitarias', () => {
+    for (let i = 0; i < malla.normals.length; i += 3) {
+      expect(Math.hypot(
+        malla.normals[i], malla.normals[i + 1], malla.normals[i + 2]
+      )).toBeCloseTo(1, 4);
+    }
   });
 });

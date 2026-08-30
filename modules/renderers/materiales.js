@@ -26,12 +26,22 @@ export const GRUPO_LISO = 'liso';
  *   desaparecer.
  * - `tinte`: cuánto del color de la Guideline se mezcla sobre el material.
  *   0 es material puro y 1 es el color plano de siempre.
+ * - `rabillo` (opcional): adorno que corona el bloque, con su malla, su color
+ *   y su alto en unidades de casilla. Es decoración y nada más: no lo ve la
+ *   colisión, ni el fijado de piezas, ni el despeje de líneas, ni la IA.
  */
 export const MATERIALES = {
   // La O es la pieza amarilla y el queso es amarillo: material y color de la
   // Guideline coinciden en vez de pelearse, así que la O puede parecer queso
   // de verdad sin dejar de ser reconocible.
   '#e5e500': { pieza: 'O', textura: './assets/queso.jpg', escala: 0.5, tinte: 0.35 },
+
+  // Lo mismo con la Z, que es la pieza roja. Su modelo traía rabillo, y ese
+  // rabillo es lo único que se aprovecha de la geometría de Meshy.
+  '#e52020': {
+    pieza: 'Z', textura: './assets/tomate.jpg', escala: 0.5, tinte: 0.35,
+    rabillo: { malla: './assets/rabillo.json', color: 0x2f6b2a, alto: 0.29 },
+  },
 };
 
 /** Normaliza un color a la forma con la que se indexa el registro. */
@@ -54,4 +64,9 @@ export function materialDe(color) {
 /** Claves de todos los grupos: el liso y uno por material con textura. */
 export function grupos() {
   return [GRUPO_LISO, ...Object.keys(MATERIALES)];
+}
+
+/** Materiales que coronan sus bloques con un adorno. */
+export function conRabillo() {
+  return Object.keys(MATERIALES).filter(c => MATERIALES[c].rabillo);
 }
