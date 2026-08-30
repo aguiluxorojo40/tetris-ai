@@ -1,6 +1,5 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import Board from '../modules/Board.js';
+import { crearCuboChaflan, CHAFLAN_POR_DEFECTO } from '../modules/renderers/cuboChaflan.js';
 import DomRenderer, {
   EMPTY_COLOR,
   GARBAGE_COLOR,
@@ -117,58 +116,144 @@ describe('DomRenderer', () => {
   });
 });
 
-describe('assets/cubo.json — el modelo de Meshy reducido', () => {
-  // El fichero se carga con fetch en el navegador; aquí se lee del disco para
-  // comprobar que es coherente antes de que llegue a producción.
-  // Se resuelve desde la raíz del proyecto y no con import.meta.url, porque
-  // Babel transpila los tests a CommonJS y allí import.meta no existe.
-  const modelo = JSON.parse(
-    readFileSync(join(process.cwd(), 'assets', 'cubo.json'), 'utf8')
-  );
+describe('crearCuboChaflan — el cubo de los bloques', () => {
+  const LADO = 1;
+  const modelo = crearCuboChaflan(LADO, 0.09);
 
-  test('trae posiciones, normales e índices', () => {
-    expect(Array.isArray(modelo.positions)).toBe(true);
-    expect(Array.isArray(modelo.normals)).toBe(true);
-    expect(Array.isArray(modelo.indices)).toBe(true);
-  });
+  // Utilidades para leer la malla como triángulos.
+  const vertice = (m, i) => [
+    m.positions[i * 3], m.positions[i * 3 + 1], m.positions[i * 3 + 2],
+  ];
+  const normal = (m, i) => [
+    m.normals[i * 3], m.normals[i * 3 + 1], m.normals[i * 3 + 2],
+  ];
+  const cruz = (a, b) => [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+  const resta = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const punto = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-  test('hay una normal por cada vértice', () => {
+  // Volumen con signo por el teorema de la divergencia. Sólo sale positivo y
+  // con sentido si la malla está cerrada y todas las caras miran hacia fuera:
+  // una sola cara invertida o un hueco lo delatan.
+  const volumen = (m) => {
+    let total = 0;
+    for (let t = 0; t < m.indices.length; t += 3) {
+      const a = vertice(m, m.indices[t]);
+      const b = vertice(m, m.indices[t + 1]);
+      const c = vertice(m, m.indices[t + 2]);
+      total += punto(a, cruz(b, c)) / 6;
+    }
+    return total;
+  };
+
+  test('son 6 caras, 12 chaflanes y 8 esquinas', () => {
+    // 6·2 + 12·2 + 8 triángulos; normales planas, sin compartir vértices.
+    expect(modelo.indices.length / 3).toBe(44);
+    expect(modelo.positions.length / 3).toBe(96);
     expect(modelo.normals.length).toBe(modelo.positions.length);
-    expect(modelo.positions.length % 3).toBe(0);
   });
 
   test('los índices forman triángulos y apuntan a vértices existentes', () => {
-    const vertices = modelo.positions.length / 3;
     expect(modelo.indices.length % 3).toBe(0);
-    expect(Math.max(...modelo.indices)).toBeLessThan(vertices);
     expect(Math.min(...modelo.indices)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...modelo.indices)).toBeLessThan(modelo.positions.length / 3);
   });
 
-  // El original de Meshy traía 1.938.500 triángulos: 220 instancias de eso
-  // serían 426 millones por fotograma.
-  test('está reducido a un número de triángulos jugable', () => {
-    const triangulos = modelo.indices.length / 3;
-    expect(triangulos).toBeGreaterThan(100);   // sigue teniendo forma
-    expect(triangulos).toBeLessThan(10000);    // y cabe en un móvil
-  });
-
-  test('está normalizado a un cubo unidad centrado en el origen', () => {
-    const eje = i => modelo.positions.filter((_, k) => k % 3 === i);
+  test('ocupa exactamente el lado pedido, centrado en el origen', () => {
     for (let i = 0; i < 3; i++) {
-      const valores = eje(i);
-      const min = Math.min(...valores);
-      const max = Math.max(...valores);
-      expect(max - min).toBeCloseTo(1, 1);        // lado ≈ 1
-      expect((min + max) / 2).toBeCloseTo(0, 1);  // centrado
+      const valores = modelo.positions.filter((_, k) => k % 3 === i);
+      expect(Math.max(...valores)).toBeCloseTo(LADO / 2, 6);
+      expect(Math.min(...valores)).toBeCloseTo(-LADO / 2, 6);
     }
   });
 
-  test('las normales son unitarias', () => {
-    for (let i = 0; i < 60; i += 3) {
-      const largo = Math.hypot(
-        modelo.normals[i], modelo.normals[i + 1], modelo.normals[i + 2]
-      );
-      expect(largo).toBeCloseTo(1, 2);
+  test('todas las normales son unitarias', () => {
+    for (let i = 0; i < modelo.positions.length / 3; i++) {
+      expect(Math.hypot(...normal(modelo, i))).toBeCloseTo(1, 6);
     }
+  });
+
+  // La gracia del chaflán es que cada bisel devuelva la luz en su propio
+  // ángulo: 6 direcciones de cara, 12 de arista y 8 de esquina.
+  test('hay 26 orientaciones distintas de cara', () => {
+    const familias = new Set();
+    for (let i = 0; i < modelo.positions.length / 3; i++) {
+      familias.add(normal(modelo, i).map(n => n.toFixed(5)).join(','));
+    }
+    expect(familias.size).toBe(26);
+
+    const cuenta = { cara: 0, arista: 0, esquina: 0 };
+    for (const clave of familias) {
+      const ejes = clave.split(',').map(Number).filter(n => Math.abs(n) > 1e-6);
+      if (ejes.length === 1) cuenta.cara++;
+      else if (ejes.length === 2) cuenta.arista++;
+      else cuenta.esquina++;
+      // Los ejes activos reparten la normal a partes iguales: las caras
+      // apuntan a ±1, los chaflanes a ±1/√2 y las esquinas a ±1/√3.
+      for (const v of ejes) {
+        expect(Math.abs(v)).toBeCloseTo(1 / Math.sqrt(ejes.length), 5);
+      }
+    }
+    expect(cuenta).toEqual({ cara: 6, arista: 12, esquina: 8 });
+  });
+
+  test('la malla está cerrada y todas las caras miran hacia fuera', () => {
+    // Un cubo achaflanado es un pelín menor que el cubo recto: sólo le faltan
+    // los biseles.
+    const v = volumen(modelo);
+    expect(v).toBeGreaterThan(0.9 * LADO ** 3);
+    expect(v).toBeLessThan(LADO ** 3);
+  });
+
+  test('la normal guardada coincide con el giro de cada triángulo', () => {
+    for (let t = 0; t < modelo.indices.length; t += 3) {
+      const a = vertice(modelo, modelo.indices[t]);
+      const b = vertice(modelo, modelo.indices[t + 1]);
+      const c = vertice(modelo, modelo.indices[t + 2]);
+      const geometrica = cruz(resta(b, a), resta(c, a));
+      const largo = Math.hypot(...geometrica);
+      expect(largo).toBeGreaterThan(1e-9); // sin triángulos degenerados
+      const unitaria = geometrica.map(x => x / largo);
+      expect(punto(unitaria, normal(modelo, modelo.indices[t]))).toBeCloseTo(1, 5);
+    }
+  });
+
+  test('no queda ninguna esquina en pico: están todas cortadas', () => {
+    const h = LADO / 2;
+    for (let i = 0; i < modelo.positions.length / 3; i++) {
+      const enPico = vertice(modelo, i).every(v => Math.abs(Math.abs(v) - h) < 1e-9);
+      expect(enPico).toBe(false);
+    }
+  });
+
+  test('a más chaflán, menos volumen, y el recuento de caras no cambia', () => {
+    const suave = crearCuboChaflan(LADO, 0.04);
+    const marcado = crearCuboChaflan(LADO, 0.2);
+    expect(volumen(marcado)).toBeLessThan(volumen(suave));
+    expect(marcado.indices.length).toBe(suave.indices.length);
+  });
+
+  test('escala con el lado', () => {
+    const grande = crearCuboChaflan(4);
+    expect(volumen(grande)).toBeCloseTo(volumen(crearCuboChaflan(1)) * 64, 4);
+  });
+
+  // El chaflán se limita a un tercio del lado: pasado ese punto las caras se
+  // cruzan y el cubo se convierte en un octaedro.
+  test('aguanta valores absurdos sin degenerar', () => {
+    for (const chaflan of [0, -5, 0.5, 10]) {
+      const m = crearCuboChaflan(1, chaflan);
+      expect(m.positions.every(Number.isFinite)).toBe(true);
+      expect(volumen(m)).toBeGreaterThan(0);
+      expect(m.indices.length / 3).toBe(44);
+    }
+  });
+
+  test('el valor por defecto es un bisel discreto', () => {
+    expect(CHAFLAN_POR_DEFECTO).toBeGreaterThan(0);
+    expect(CHAFLAN_POR_DEFECTO).toBeLessThan(0.2);
   });
 });

@@ -8,6 +8,7 @@
 // dinámica y sólo al activar el modo 3D: una partida normal no carga nada.
 
 import * as THREE from 'three';
+import { crearCuboChaflan } from './cuboChaflan.js';
 
 const FOV = 30;
 
@@ -27,9 +28,18 @@ const GHOST_COLOR = 0xffffff;
 const MAX_BLOQUES = 210;
 const MAX_SOMBRA = 8;
 
-// Modelo del cubo. Si no está o falla, se usa una caja normal: el juego no
-// puede quedarse sin dibujar por un archivo que no cargue.
-const RUTA_CUBO = './assets/cubo.json';
+// Hueco entre bloques contiguos: el cubo no llena la casilla entera.
+const LADO_CUBO = 0.92;
+
+/** Pasa el cubo achaflanado a una geometría de three.js. */
+function geometriaCubo() {
+  const { positions, normals, indices } = crearCuboChaflan(LADO_CUBO);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setIndex(indices);
+  return geo;
+}
 
 export default class WebGLRenderer {
   init(element, width, height) {
@@ -74,13 +84,14 @@ export default class WebGLRenderer {
     this.scene.add(fondo);
 
     // Un solo cubo dibujado muchas veces mediante instanciado: una única
-    // llamada de dibujo para todo el tablero, en vez de una por bloque. Es lo
-    // que permite usar un modelo detallado sin hundir el rendimiento.
-    this.geometry = new THREE.BoxGeometry(0.92, 0.92, 0.92);
+    // llamada de dibujo para todo el tablero, en vez de una por bloque.
+    this.geometry = geometriaCubo();
 
+    // Phong en vez de Lambert por el brillo especular: es lo que enciende los
+    // chaflanes y separa un bloque del de al lado cuando comparten color.
     this.bloques = new THREE.InstancedMesh(
       this.geometry,
-      new THREE.MeshLambertMaterial(),
+      new THREE.MeshPhongMaterial({ shininess: 26, specular: 0x2a2a2a }),
       MAX_BLOQUES
     );
     this.bloques.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -104,41 +115,9 @@ export default class WebGLRenderer {
     this.usados = 0;
     this.usadosSombra = 0;
 
-    this.cargarCubo();
     this.resize();
     this.onResize = () => this.resize();
     window.addEventListener('resize', this.onResize);
-  }
-
-  /**
-   * Sustituye la caja por el modelo del cubo, si está disponible. Se hace en
-   * segundo plano: el tablero se dibuja desde el primer momento con la caja y
-   * el modelo entra cuando llega.
-   */
-  async cargarCubo() {
-    try {
-      const respuesta = await fetch(RUTA_CUBO);
-      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
-      const datos = await respuesta.json();
-
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position',
-        new THREE.Float32BufferAttribute(datos.positions, 3));
-      geo.setAttribute('normal',
-        new THREE.Float32BufferAttribute(datos.normals, 3));
-      geo.setIndex(datos.indices);
-      // El modelo viene normalizado a un cubo unidad; se deja el mismo hueco
-      // entre bloques que tenía la caja.
-      geo.scale(0.92, 0.92, 0.92);
-
-      this.geometry.dispose();
-      this.geometry = geo;
-      this.bloques.geometry = geo;
-      this.sombra.geometry = geo;
-      this.render();
-    } catch (error) {
-      console.warn('No se pudo cargar el modelo del cubo, se usa una caja:', error);
-    }
   }
 
   resize() {
