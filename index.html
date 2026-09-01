@@ -2,72 +2,144 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Tetris 2D/3D Modular</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Tetris</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- three.js vive en el repo, no en un CDN, para que el juego funcione sin
+       conexión. Sólo se descarga al activar el 3D: main.js lo importa de
+       forma dinámica. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.min.js"
+    }
+  }
+  </script>
 </head>
 <body>
   <div class="game-container">
-    <h1>Tetris</h1>
-    <div class="game-wrapper">
-      <!-- Tablero 2D -->
-      <div class="tetris-board" id="board" aria-label="Tablero de Tetris"></div>
-      <!-- Canvas para renderizado 3D -->
-      <canvas id="tetrisCanvas" aria-label="Canvas de Tetris 3D"></canvas>
 
-      <!-- Panel de información -->
-      <div class="info-panel" aria-label="Panel de Información">
-        <h2>Score: <span id="score">0</span></h2>
-        <h2>Level: <span id="level">1</span></h2>
-        <h2>Next:</h2>
-        <div class="next-piece" id="nextPiece" aria-label="Próxima Pieza"></div>
+    <!-- Tableros. El segundo sólo aparece en modo versus. -->
+    <div class="boards" id="boards">
 
-        <!-- Botón para cambiar entre modos -->
-        <button id="switchRenderMode" aria-pressed="false">Cambiar a 3D</button>
-
-        <!-- Botón para activar/desactivar la IA -->
-        <button id="toggleAIButton" aria-pressed="false">Activar IA</button>
-
-        <!-- Menú de inicio -->
-        <div class="start-menu" aria-label="Menú de Inicio">
-          <p class="game-desc">
-            Coloca las piezas de Tetris para completar líneas y ganar puntos.
-            Ajusta la dificultad y comienza tu partida.
-          </p>
-          <button id="startButton" class="start-button">Iniciar Juego</button>
-          <div class="difficulty-select">
-            <label for="difficulty"><span class="icon">⚙️</span> Dificultad:</label>
-            <select id="difficulty">
-              <option value="500">Normal</option>
-              <option value="300">Hard</option>
-              <option value="700">Easy</option>
-            </select>
-          </div>
+      <section class="player" id="player1">
+        <div class="player-head">
+          <span class="player-name" id="player1Name">Jugador</span>
+          <span class="player-score" id="score">0</span>
+          <span class="player-level">Nv <span id="level">1</span></span>
+          <span class="garbage" id="garbage" aria-label="Basura entrante"></span>
+          <div class="next-piece" id="nextPiece" aria-label="Próxima Pieza"></div>
         </div>
+        <div class="play-area">
+          <div class="tetris-board" id="board" aria-label="Tablero de Tetris"></div>
+        </div>
+      </section>
+
+      <section class="player" id="player2" hidden>
+        <div class="player-head">
+          <span class="player-name">IA</span>
+          <span class="player-score" id="score2">0</span>
+          <span class="player-level">Nv <span id="level2">1</span></span>
+          <span class="garbage" id="garbage2" aria-label="Basura entrante de la IA"></span>
+          <div class="next-piece" id="nextPiece2" aria-label="Próxima Pieza de la IA"></div>
+        </div>
+        <div class="play-area">
+          <div class="tetris-board" id="board2" aria-label="Tablero de la IA"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="side">
+
+      <p class="result" id="result" aria-live="polite" hidden></p>
+
+      <!-- Controles táctiles: la única forma de jugar en un móvil -->
+      <div class="controls" aria-label="Controles Manuales">
+        <button id="rotate" class="btn-rotate" aria-label="Rotar Pieza">⟳</button>
+        <button id="hardDrop" class="btn-drop" aria-label="Hard Drop">⤓</button>
+        <button id="left" class="btn-left" aria-label="Mover Izquierda">←</button>
+        <button id="down" class="btn-down" aria-label="Mover Abajo">↓</button>
+        <button id="right" class="btn-right" aria-label="Mover Derecha">→</button>
       </div>
-    </div>
 
-    <!-- Controles manuales -->
-    <div class="controls" aria-label="Controles Manuales">
-      <button id="rotate" aria-label="Rotar Pieza">⟳</button>
-      <button id="left" aria-label="Mover Izquierda">←</button>
-      <button id="down" aria-label="Mover Abajo">↓</button>
-      <button id="right" aria-label="Mover Derecha">→</button>
-      <button id="hardDrop" aria-label="Hard Drop">Drop</button>
+      <div class="actions">
+        <button id="startButton" class="primary">Iniciar</button>
+        <select id="difficulty" aria-label="Dificultad">
+          <option value="500">Normal</option>
+          <option value="300">Difícil</option>
+          <option value="700">Fácil</option>
+        </select>
+        <button id="versusButton" aria-pressed="false">Versus</button>
+        <button id="renderButton" aria-pressed="false">3D</button>
+        <button id="toggleAIButton" aria-pressed="false">Activar IA</button>
+        <button id="optionsButton" aria-controls="optionsMenu" aria-expanded="false">Opciones</button>
+      </div>
+
+      <div class="actions">
+        <label class="speed-label" for="aiLevel">Nivel IA</label>
+        <select id="aiLevel" aria-label="Nivel de la IA">
+          <option value="principiante">Principiante</option>
+          <option value="normal" selected>Normal</option>
+          <option value="dificil">Difícil</option>
+          <option value="imposible">Imposible</option>
+        </select>
+      </div>
+
+      <p id="gamepadStatus" class="gamepad-status" aria-live="polite">🎮 Sin mando</p>
     </div>
   </div>
 
-  <!-- Botón para mostrar el menú de opciones -->
-  <button id="optionsButton" aria-controls="optionsMenu" aria-expanded="false">Opciones</button>
+  <!-- Menú de Opciones: superposición, oculta por defecto -->
+  <div class="options-menu" id="optionsMenu" aria-hidden="true" role="dialog" aria-label="Opciones">
+    <div class="options-panel">
+      <h2>Opciones</h2>
 
-  <!-- Menú de Opciones -->
-  <div class="options-menu" id="optionsMenu" aria-hidden="true">
-    <h2>Opciones</h2>
-    <label for="bgImageInput">Selecciona una imagen de fondo:</label>
-    <input type="file" id="bgImageInput" accept="image/*">
+      <label for="bgImageInput">Imagen de fondo del tablero:</label>
+      <input type="file" id="bgImageInput" accept="image/*">
+
+      <h3>Modo 3D</h3>
+      <p class="gamepad-hint">
+        Dibuja el tablero con WebGL en lugar de con una rejilla de divs. La
+        librería son unos 670 KB y sólo se descarga al activarlo, así que una
+        partida normal no carga nada de más. Los bloques son cubos con chaflán
+        generados por código: no hay ningún modelo que descargar. Si tu
+        navegador no soporta WebGL, el juego se queda en 2D y sigue funcionando.
+      </p>
+
+      <h3>Modo versus</h3>
+      <p class="gamepad-hint">
+        Dos tableros enfrentados con exactamente la misma secuencia de piezas.
+        Despejar líneas envía filas de basura al rival, según la tabla de ataque
+        estándar: un doble envía 1, un triple 2 y un tetris 4. La basura queda
+        en cola (el contador ⬆) y sólo entra al fijar una pieza sin despejar,
+        así que despejar líneas primero la cancela. Pierde quien desborde.
+      </p>
+
+      <h3>Nivel de la IA</h3>
+      <p class="gamepad-hint">
+        La IA usa la función de evaluación de Dellacherie y, a pleno rendimiento,
+        es prácticamente imbatible. Los niveles la gradúan en dos ejes: cada
+        cuánto actúa y con qué frecuencia elige adrede una jugada mediocre.
+      </p>
+
+      <h3>Controles del mando</h3>
+      <ul class="gamepad-legend">
+        <li><strong>Cruceta / stick izq.:</strong> mover y bajar</li>
+        <li><strong>Botones frontales / arriba:</strong> rotar</li>
+        <li><strong>Gatillos y bumpers:</strong> hard drop</li>
+        <li><strong>Start / Select:</strong> iniciar partida</li>
+      </ul>
+      <p class="gamepad-hint">
+        Compatible con cualquier mando. Si no aparece como conectado, pulsa
+        cualquier botón: los navegadores no lo detectan hasta la primera pulsación.
+      </p>
+
+      <h3>Teclado</h3>
+      <p class="gamepad-hint">← → mover · ↓ bajar · ↑ rotar · Espacio hard drop</p>
+    </div>
   </div>
 
-  <!-- Archivo principal -->
   <script type="module" src="main.js"></script>
 </body>
 </html>

@@ -1,76 +1,266 @@
 import Game from './modules/Game.js';
-import AI from './modules/AI.js'; // Asegúrate de que el nombre del archivo es consistente
-import { CONFIG } from './config.js'; // Archivo de configuración (ver abajo)
+import AI from './modules/AI.js';
+import GamepadController from './modules/Gamepad.js';
+import DomRenderer from './modules/renderers/DomRenderer.js';
+import { createPieceSequence, createPieceReader } from './modules/Utils.js';
+import { CONFIG } from './config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elementos del DOM
   const startButton = document.getElementById(CONFIG.BUTTON_IDS.START_BUTTON);
   const difficultySelect = document.getElementById(CONFIG.BUTTON_IDS.DIFFICULTY_SELECT);
   const toggleAIButton = document.getElementById(CONFIG.BUTTON_IDS.TOGGLE_AI_BUTTON);
+  const versusButton = document.getElementById(CONFIG.BUTTON_IDS.VERSUS_BUTTON);
+  const aiLevelSelect = document.getElementById(CONFIG.BUTTON_IDS.AI_LEVEL);
+  const renderButton = document.getElementById(CONFIG.BUTTON_IDS.RENDER_BUTTON);
   const optionsButton = document.getElementById(CONFIG.BUTTON_IDS.OPTIONS_BUTTON);
   const optionsMenu = document.querySelector(CONFIG.SELECTORS.OPTIONS_MENU);
   const bgImageInput = document.getElementById(CONFIG.BUTTON_IDS.BG_IMAGE_INPUT);
-  const tetrisBoard = document.getElementById(CONFIG.BUTTON_IDS.BOARD);
+  const gamepadStatus = document.getElementById(CONFIG.BUTTON_IDS.GAMEPAD_STATUS);
+  const resultBanner = document.getElementById(CONFIG.BUTTON_IDS.RESULT);
+  const player1Name = document.getElementById('player1Name');
+  const player2 = document.getElementById('player2');
 
-  let game = null;
-  let ai = null;
-  let aiActive = false;
+  // Ids del tablero del rival en modo versus.
+  const RIVAL_IDS = {
+    board: 'board2',
+    score: 'score2',
+    level: 'level2',
+    nextPiece: 'nextPiece2',
+    garbage: 'garbage2',
+    startButton: null,
+  };
 
-  /**
-   * Inicializa la IA cargando el modelo TFLite.
-   */
-  async function initAI() {
-    toggleAIButton.disabled = true; // Deshabilita el botón mientras se carga la IA
-    ai = new AI(CONFIG.MODEL_PATH); // Ruta centralizada al modelo .tflite
-    await ai.loadModel(); 
-    toggleAIButton.disabled = false; // Habilita el botón una vez cargada la IA
+  let game = null;        // tablero principal (jugador humano, o la IA en solitario)
+  let rivalGame = null;   // tablero de la IA en modo versus
+  let aiActive = false;   // la IA juega el tablero principal
+  let versus = false;
+  let matchOver = false;
+  let use3D = false;
+
+  // three.js pesa unos 670 KB: se importa sólo si se activa el 3D, y una vez.
+  let WebGLRendererClass = null;
+
+  async function loadWebGLRenderer() {
+    if (!WebGLRendererClass) {
+      const modulo = await import('./modules/renderers/WebGLRenderer.js');
+      WebGLRendererClass = modulo.default;
+    }
+    return WebGLRendererClass;
+  }
+
+  /** Devuelve el renderizador que toca, o null para el de por defecto. */
+  async function makeRenderer() {
+    if (!use3D) return null;
+    const Clase = await loadWebGLRenderer();
+    return new Clase();
   }
 
   /**
-   * Ciclo de la IA con requestAnimationFrame para no bloquear la interfaz.
+   * Alterna entre la rejilla de divs y WebGL. Si la librería no carga o el
+   * navegador no soporta WebGL, se queda en 2D y el juego sigue jugándose.
    */
-  async function runAI() {
-    if (aiActive && game && game.isRunning) {
-      const gameState = game.getGameState();
-      const action = await ai.predictAction(gameState);
-      if (action !== null) {
-        game.executeAction(action);
+  async function toggleRender() {
+    const destino = !use3D;
+    renderButton.disabled = true;
+
+    try {
+      if (destino) await loadWebGLRenderer();
+      use3D = destino;
+    } catch (error) {
+      console.error('No se pudo activar el 3D:', error);
+      use3D = false;
+    } finally {
+      renderButton.disabled = false;
+    }
+
+    renderButton.textContent = use3D ? '2D' : '3D';
+    renderButton.setAttribute('aria-pressed', use3D);
+    document.body.classList.toggle('modo-3d', use3D);
+
+    // Se aplica al vuelo, conservando el estado de la partida.
+    for (const partida of [game, rivalGame]) {
+      if (!partida) continue;
+      try {
+        partida.board.setRenderer(await makeRenderer() || new DomRenderer());
+        partida.draw();
+      } catch (error) {
+        console.error('No se pudo cambiar el renderizador:', error);
       }
-      requestAnimationFrame(runAI);
     }
   }
 
+  let ai = new AI();       // cerebro del tablero principal
+  let rivalAI = new AI();  // cerebro del rival
+
+  function nivelActual() {
+    return CONFIG.AI_LEVELS[aiLevelSelect.value] || CONFIG.AI_LEVELS.normal;
+  }
+
+  // Milisegundos entre acciones de la IA. Sin freno actuaría una vez por frame,
+  // es decir 60 acciones por segundo: imposible de seguir con la vista.
+  let aiDelay = nivelActual().delay;
+
+  function aplicarNivel() {
+    const nivel = nivelActual();
+    aiDelay = nivel.delay;
+    ai = new AI({ mistakeRate: nivel.mistakeRate });
+    rivalAI = new AI({ mistakeRate: nivel.mistakeRate });
+  }
+  aplicarNivel();
+
   /**
-   * Alterna la activación de la IA.
+   * Da un paso de IA sobre un tablero, respetando la cadencia elegida.
+   */
+  function stepAI(brain, target, timestamp) {
+    if (!target || !target.isRunning) return;
+    if (timestamp - (target.lastAIStep || 0) < aiDelay) return;
+    target.lastAIStep = timestamp;
+
+    const action = brain.predictAction(target.getGameState());
+    if (action !== null && action !== undefined) target.executeAction(action);
+  }
+
+  /**
+   * Bucle único para ambos tableros: no bloquea la interfaz.
+   */
+  function loop(timestamp) {
+    if (aiActive && game) stepAI(ai, game, timestamp);
+    if (versus && rivalGame) stepAI(rivalAI, rivalGame, timestamp);
+
+    const sigue = (aiActive && game && game.isRunning) ||
+                  (versus && rivalGame && rivalGame.isRunning);
+    if (sigue) requestAnimationFrame(loop);
+  }
+
+  function runLoop() {
+    requestAnimationFrame(loop);
+  }
+
+  function showResult(texto) {
+    resultBanner.textContent = texto;
+    resultBanner.hidden = false;
+  }
+
+  function hideResult() {
+    resultBanner.hidden = true;
+  }
+
+  function stopGames() {
+    if (game) game.stop();
+    if (rivalGame) rivalGame.stop();
+  }
+
+  /**
+   * Alterna la activación de la IA sobre el tablero principal.
    */
   function toggleAI() {
+    if (versus) return; // en versus la IA siempre juega su propio tablero
+
     aiActive = !aiActive;
-    toggleAIButton.textContent = aiActive ? "Desactivar IA" : "Activar IA";
+    toggleAIButton.textContent = aiActive ? 'Desactivar IA' : 'Activar IA';
     toggleAIButton.setAttribute('aria-pressed', aiActive);
 
-    if (aiActive && ai && game && game.isRunning) {
-      game.isAIPlaying = true;
-      runAI();
-    } else if (game) {
-      game.isAIPlaying = false;
+    if (game) game.isAIPlaying = aiActive;
+    if (aiActive) {
+      ai.reset();
+      runLoop();
     }
   }
 
   /**
-   * Inicia el juego con la dificultad seleccionada.
+   * Alterna el modo versus. No arranca la partida: sólo prepara la interfaz.
    */
-  function startGame() {
+  function toggleVersus() {
+    versus = !versus;
+    stopGames();
+    hideResult();
+
+    versusButton.setAttribute('aria-pressed', versus);
+    versusButton.textContent = versus ? 'Salir de versus' : 'Versus';
+    player2.hidden = !versus;
+    document.body.classList.toggle('versus', versus);
+    player1Name.textContent = versus ? 'Tú' : 'Jugador';
+
+    // En versus la IA tiene su propio tablero: el interruptor no aplica.
+    toggleAIButton.disabled = versus;
+    if (versus && aiActive) {
+      aiActive = false;
+      toggleAIButton.textContent = 'Activar IA';
+      toggleAIButton.setAttribute('aria-pressed', false);
+    }
+
+    startButton.disabled = false;
+  }
+
+  /**
+   * Arranca una partida normal.
+   */
+  async function startSingle() {
     if (game) game.stop();
+    hideResult();
 
     const gravity = parseInt(difficultySelect.value, 10);
-    game = new Game(gravity);
+    aplicarNivel();
+    game = new Game(gravity, { renderer: await makeRenderer() });
+    game.isAIPlaying = aiActive;
     game.start();
 
-    // Si la IA está activa al iniciar, comienza el ciclo de IA
-    if (aiActive && ai) {
-      game.isAIPlaying = true;
-      runAI();
-    }
+    if (aiActive) runLoop();
+  }
+
+  /**
+   * Arranca un duelo: dos tableros con la misma secuencia de piezas.
+   */
+  async function startVersus() {
+    stopGames();
+    hideResult();
+    matchOver = false;
+
+    const gravity = parseInt(difficultySelect.value, 10);
+    // Una única secuencia sembrada, compartida por ambos: mismas piezas, mismo
+    // orden. Sin esto el duelo no sería comparable.
+    const sequence = createPieceSequence(Date.now() >>> 0);
+
+    const finish = quien => {
+      if (matchOver) return;
+      matchOver = true;
+      stopGames();
+      showResult(quien === 'humano'
+        ? `Gana la IA — tú ${game.score} · IA ${rivalGame.score}`
+        : `¡Ganas tú! — tú ${game.score} · IA ${rivalGame.score}`);
+      startButton.disabled = false;
+    };
+
+    aplicarNivel(); // recoge el nivel elegido antes de empezar el duelo
+
+    game = new Game(gravity, {
+      renderer: await makeRenderer(),
+      pieceSource: createPieceReader(sequence),
+      controls: true,
+      onGameOver: () => finish('humano'),
+      // Despejar líneas envía basura al rival (tabla de ataque estándar).
+      onAttack: lineas => { if (rivalGame) rivalGame.receiveGarbage(lineas); },
+    });
+
+    rivalGame = new Game(gravity, {
+      renderer: await makeRenderer(),
+      ids: RIVAL_IDS,
+      pieceSource: createPieceReader(sequence),
+      controls: false,   // el tablero de la IA no debe robar el teclado
+      onGameOver: () => finish('ia'),
+      onAttack: lineas => { if (game) game.receiveGarbage(lineas); },
+    });
+    rivalGame.isAIPlaying = true;
+
+    game.start();
+    rivalGame.start();
+    runLoop();
+  }
+
+  function startGame() {
+    if (versus) startVersus();
+    else startSingle();
   }
 
   /**
@@ -80,14 +270,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const isShown = optionsMenu.classList.toggle('show');
     optionsButton.setAttribute('aria-expanded', isShown);
     optionsMenu.setAttribute('aria-hidden', !isShown);
-
-    // Para evitar que la IA siga actuando mientras mostramos el menú
-    if (isShown) {
-      aiActive = false;
-      if (game) game.isAIPlaying = false;
-      toggleAIButton.textContent = "Activar IA";
-      toggleAIButton.setAttribute('aria-pressed', false);
-    }
   }
 
   /**
@@ -95,24 +277,53 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   function changeBackground() {
     const file = bgImageInput.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const imageURL = e.target.result;
-        tetrisBoard.style.backgroundImage = `url('${imageURL}')`;
-        tetrisBoard.style.backgroundSize = 'cover';
-        tetrisBoard.style.backgroundPosition = 'center';
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      for (const id of ['board', 'board2']) {
+        const tablero = document.getElementById(id);
+        if (tablero) tablero.style.backgroundImage = `url('${e.target.result}')`;
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
+  /**
+   * El mando sólo controla la pieza si hay partida en curso y la IA no juega
+   * ese tablero (mismo criterio que el control por teclado).
+   */
+  function isManualPlayEnabled() {
+    return Boolean(game && game.isRunning && !game.isAIPlaying);
+  }
+
+  function updateGamepadStatus(connected) {
+    if (!gamepadStatus) return;
+    gamepadStatus.textContent = connected ? '🎮 Mando conectado' : '🎮 Sin mando';
+    gamepadStatus.classList.toggle('connected', connected);
+  }
+
+  // Soporte de mando: se sondea a nivel de aplicación (no de partida) para que
+  // el botón Start del mando pueda iniciar el juego.
+  const gamepad = new GamepadController({
+    onLeft: () => { if (isManualPlayEnabled()) game.movePiece(-1, 0); },
+    onRight: () => { if (isManualPlayEnabled()) game.movePiece(1, 0); },
+    onSoftDrop: () => { if (isManualPlayEnabled()) game.softDrop(); },
+    onRotate: () => { if (isManualPlayEnabled()) game.rotatePiece(); },
+    onHardDrop: () => { if (isManualPlayEnabled()) game.hardDrop(); },
+    onStart: () => { if (!game || !game.isRunning) startGame(); },
+    onConnectionChange: updateGamepadStatus,
+  });
+
   // Event Listeners
-  toggleAIButton.addEventListener('click', toggleAI);
   startButton.addEventListener('click', startGame);
+  toggleAIButton.addEventListener('click', toggleAI);
+  versusButton.addEventListener('click', toggleVersus);
+  renderButton.addEventListener('click', toggleRender);
   optionsButton.addEventListener('click', toggleOptionsMenu);
   bgImageInput.addEventListener('change', changeBackground);
+  aiLevelSelect.addEventListener('change', aplicarNivel);
 
-  // Cargar la IA al inicio
-  initAI();
+  updateGamepadStatus(false);
+  gamepad.start();
 });

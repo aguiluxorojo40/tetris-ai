@@ -1,197 +1,299 @@
 @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap');
 
+/* =============================================================
+   Diseño pensado para móvil: la pantalla no hace scroll y el
+   tablero se escala para caber entero en cualquier orientación.
+   ============================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
 html, body {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
+  height: 100%;
+  overscroll-behavior: none;
 }
 
 body {
   font-family: 'Open Sans', sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100vh;
+  /* dvh tiene en cuenta la barra de direcciones del navegador móvil;
+     vh queda como reserva para navegadores que no lo soporten. */
+  height: 100vh;
+  height: 100dvh;
   background: linear-gradient(135deg, #2c3e50, #4ca1af);
   color: #f2f2f2;
-  padding: 20px;
-  transition: background 0.5s ease;
+  overflow: hidden;            /* nada de scroll durante la partida */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .game-container {
-  /* Si prefieres, comenta o quita el max-width para evitar recorte en pantallas más grandes */
-  /* max-width: 600px; */
-  width: 90%;
-  margin: 0 auto;
-  text-align: center;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.3);
-}
-
-.game-container h1 {
-  margin-top: 0;
-  font-weight: 600;
-  letter-spacing: 1px;
-  font-size: 1.6rem;
-  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-}
-
-.game-wrapper {
+  height: 100%;
   display: flex;
-  flex-wrap: wrap; /* Para que los elementos no se recorten */
-  align-items: flex-start;
-  justify-content: center;
-  gap: 15px;
-  margin-top: 10px;
-  position: relative;
+  flex-direction: column;      /* vertical: tablero arriba, controles abajo */
+  gap: 8px;
+  padding: 8px;
+  padding-top: max(8px, env(safe-area-inset-top));
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
 
-/* Tablero 2D */
+/* ----- Zona de juego ----------------------------------------------------- */
+
+/* Contenedor de tableros: uno solo, o dos enfrentados en modo versus. */
+.boards {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.player {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 460px;
+}
+
+.player[hidden] { display: none; }
+
+.player-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.player-name { font-weight: 600; opacity: 0.85; }
+.player-score { font-weight: 600; color: #ffecb3; font-size: 0.95rem; }
+.player-level { opacity: 0.7; }
+
+/* Contador de basura entrante: sólo ocupa sitio cuando hay algo en cola. */
+.garbage {
+  color: #ff7b6b;
+  font-weight: 600;
+}
+
+.garbage:empty { display: none; }
+
+/* El tablero de la IA se distingue con un tinte propio. */
+#player2 .tetris-board { border-color: rgba(255, 180, 120, 0.9); }
+#player2 .player-score { color: #ffcc80; }
+
+.result {
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1rem;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.result[hidden] { display: none; }
+
+.speed-label { font-size: 0.8rem; opacity: 0.8; align-self: center; }
+
+.play-area {
+  flex: 1;                     /* ocupa todo el espacio sobrante */
+  min-height: 0;               /* imprescindible para que pueda encogerse */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* La proporción 1:2 (10x20 celdas) con height + max-width hace que el
+   tablero se ajuste al lado que primero se quede corto. */
 .tetris-board {
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1 / 2;
   display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(20, 1fr);
   gap: 1px;
   background-color: #222;
-  border: 2px solid #fff;
-  border-radius: 5px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  grid-template-columns: repeat(10, 30px);
-  grid-template-rows: repeat(20, 30px);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  background-size: cover;
+  background-position: center;
 }
 
-/* Canvas para modo 3D */
-canvas#tetrisCanvas {
-  display: none; /* Oculto por defecto, visible solo en modo 3D */
-  width: 100%;
-  height: auto;
-  border-radius: 5px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  border: 2px solid #fff;
-  background-color: #000;
-  position: absolute;
-  top: 0;
-  left: 0;
+.tetris-board div {
+  background-color: #444;
+  border-radius: 1px;
 }
 
-/* Mostrar canvas en modo 3D */
-canvas#tetrisCanvas.active {
+/* En modo 3D el tablero deja de ser una rejilla y aloja un canvas. */
+.tetris-board.webgl {
   display: block;
+  background-color: #1c1c1c;
+  padding: 0;
 }
 
-/* Ocultar tablero en modo 3D */
-.tetris-board.hidden {
-  display: none;
+.tetris-board.webgl canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ----- Lateral ----------------------------------------------------------- */
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .next-piece {
   display: grid;
+  grid-template-columns: repeat(4, 9px);
+  grid-template-rows: repeat(4, 9px);
   gap: 1px;
   background-color: #222;
-  border: 2px solid #fff;
-  border-radius: 5px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  grid-template-columns: repeat(4, 20px);
-  grid-template-rows: repeat(4, 20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 3px;
 }
 
-.tetris-board div,
-.next-piece div {
-  background-color: #444;
-  border-radius: 1px;
-  box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.5);
-}
+.next-piece div { background-color: #444; }
 
-.info-panel {
-  text-align: left;
-  font-size: 14px;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 10px;
-  border-radius: 5px;
-  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.3);
-  width: 120px;
-}
-
-.info-panel h2 {
-  margin: 8px 0;
-  font-weight: 400;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  font-size: 14px;
-}
-
-.info-panel h2 span {
-  font-weight: 600;
-  color: #ffecb3;
-}
+/* ----- Controles táctiles ------------------------------------------------ */
 
 .controls {
   display: grid;
-  grid-template-columns: repeat(3, 60px);
-  grid-template-rows: repeat(3, 60px);
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
-  margin-top: 20px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas:
+    ".    rotate  drop"
+    "left down    right";
+  gap: 8px;
+  max-width: 340px;
+  width: 100%;
+  margin: 0 auto;
 }
+
+.btn-rotate { grid-area: rotate; }
+.btn-drop   { grid-area: drop; }
+.btn-left   { grid-area: left; }
+.btn-down   { grid-area: down; }
+.btn-right  { grid-area: right; }
 
 .controls button {
+  /* Alto cómodo para el pulgar, pero capaz de encoger en pantallas bajas */
+  min-height: clamp(38px, 8vh, 58px);
+  font-size: clamp(1.1rem, 4vh, 1.6rem);
   background: #34495e;
   color: #f2f2f2;
-  font-weight: 600;
-  border-radius: 8px;
-  font-size: 16px;
-  padding: 10px;
-  transition: background 0.3s ease, transform 0.1s ease;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.controls button:hover:enabled {
-  background: #3b5998;
-  transform: translateY(-2px);
-}
-
-#switchRenderMode {
-  width: 100%;
-  padding: 8px;
-  margin-top: 10px;
-  background: linear-gradient(135deg, #2980b9, #6dd5fa);
-  color: #fff;
   border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 14px;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  touch-action: manipulation;  /* sin zoom por doble toque */
+}
+
+.controls button:active {
+  background: #3b5998;
+  transform: translateY(1px);
+}
+
+/* ----- Acciones ---------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.actions button,
+.actions select {
+  background: #34495e;
+  color: #f2f2f2;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+
+.actions button.primary {
+  background: linear-gradient(135deg, #2980b9, #6dd5fa);
   font-weight: 600;
-  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
-  transition: background 0.3s ease, transform 0.2s ease;
 }
 
-#switchRenderMode:hover {
-  background: linear-gradient(135deg, #3498db, #8e44ad);
+.actions button:disabled { opacity: 0.5; }
+
+.gamepad-status {
+  margin: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0.6;
 }
 
-/* Ajustes para pantallas pequeñas */
-@media(max-width: 600px) {
-  /* Haz el tablero un poco más pequeño */
-  .tetris-board {
-    grid-template-columns: repeat(10, 25px);
-    grid-template-rows: repeat(20, 25px);
-  }
-
-  /* Opcional: cambia el layout a columna para que el tablero quede arriba y la info-panel abajo */
-  .game-wrapper {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .controls {
-    grid-template-columns: repeat(3, 50px);
-    grid-template-rows: repeat(3, 50px);
-  }
-
-  canvas#tetrisCanvas {
-    height: 400px;
-  }
+.gamepad-status.connected {
+  opacity: 1;
+  color: #7bed9f;
+  font-weight: 600;
 }
+
+/* ----- Menú de opciones: superposición, oculta por defecto ---------------- */
+
+.options-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: none;               /* <- lo que faltaba: no ocupa nada si no se abre */
+  background: rgba(0, 0, 0, 0.6);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.options-menu.show { display: block; }
+
+.options-panel {
+  max-width: 480px;
+  margin: 0 auto;
+  background: #24384a;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.options-panel h2 { margin-top: 0; font-size: 1.2rem; }
+.options-panel h3 { margin-bottom: 4px; font-size: 0.95rem; }
+
+.gamepad-legend {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.gamepad-hint {
+  font-size: 0.78rem;
+  opacity: 0.8;
+  margin: 6px 0;
+}
+
+/* ----- Horizontal: tablero a la izquierda, todo lo demás a la derecha ----- */
+
+@media (orientation: landscape) {
+  .game-container { flex-direction: row; }
+
+  .side {
+    width: min(46%, 360px);
+    justify-content: center;
+    overflow-y: auto;
+  }
+
+  /* Con dos tableros el espacio es la mitad: se aprieta todo un poco. */
+body.versus .player-head { font-size: 0.7rem; gap: 5px; padding: 3px 5px; }
+body.versus .next-piece { grid-template-columns: repeat(4, 6px); grid-template-rows: repeat(4, 6px); }

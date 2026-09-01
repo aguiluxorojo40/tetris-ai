@@ -1,7 +1,8 @@
 export class Piece {
-  constructor(shape, color) {
+  constructor(shape, color, type = null) {
     this.shape = shape;
     this.color = color;
+    this.type = type;
     this.x = 0;
     this.y = 0;
   }

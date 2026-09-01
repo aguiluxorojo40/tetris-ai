@@ -6,6 +6,13 @@ describe('Piece Class', () => {
     const piece = new Piece(shape, 'red');
     expect(piece.shape).toEqual(shape);
     expect(piece.color).toBe('red');
+    expect(piece.x).toBe(0);
+    expect(piece.y).toBe(0);
+  });
+
+  test('should store the piece type when provided', () => {
+    const piece = new Piece([[1, 1]], 'cyan', 'I');
+    expect(piece.type).toBe('I');
   });
 
   test('should move the piece to a new position', () => {
